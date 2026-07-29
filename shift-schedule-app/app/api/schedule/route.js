@@ -14,59 +14,29 @@ export async function GET(request) {
 
   const supabase = getSupabaseServer();
 
-  const [{ data: entries, error: entriesError }, { data: status, error: statusError }] =
-    await Promise.all([
-      supabase.from("schedule_entries").select("*"),
-      supabase.from("schedule_status").select("*").eq("id", 1).single(),
-    ]);
+  const [
+    { data: assignments, error: aErr },
+    { data: staff, error: sErr },
+    { data: status, error: stErr },
+  ] = await Promise.all([
+    supabase
+      .from("schedule_assignments")
+      .select("id, shift_name, position_name, day_name, staff_id, staff_members(name)"),
+    supabase.from("staff_members").select("*").order("name"),
+    supabase.from("schedule_status").select("*").eq("id", 1).single(),
+  ]);
 
-  if (entriesError || statusError) {
+  if (aErr || sErr || stErr) {
     return NextResponse.json({ error: "تعذر تحميل البيانات" }, { status: 500 });
   }
 
   return NextResponse.json({
-    entries,
+    assignments,
+    staff,
     isPublished: status?.is_published ?? false,
+    viewPin: session.accessRole === "admin" ? status?.view_pin : undefined,
     session,
   });
-}
-
-// تحديث خانة واحدة (فقط للمدير، وفقط إذا الجدول مو منشور)
-export async function PUT(request) {
-  const session = await getSession(request);
-  if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-  if (session.accessRole !== "admin") {
-    return NextResponse.json({ error: "هذا الإجراء للمدير فقط" }, { status: 403 });
-  }
-
-  const supabase = getSupabaseServer();
-
-  const { data: status } = await supabase.from("schedule_status").select("is_published").eq("id", 1).single();
-  if (status?.is_published) {
-    return NextResponse.json({ error: "الجدول منشور، لا يمكن التعديل" }, { status: 409 });
-  }
-
-  const { shiftName, positionName, dayName, employeeName } = await request.json();
-  if (!shiftName || !positionName || !dayName) {
-    return NextResponse.json({ error: "بيانات ناقصة" }, { status: 400 });
-  }
-
-  const { error } = await supabase
-    .from("schedule_entries")
-    .upsert(
-      {
-        shift_name: shiftName,
-        position_name: positionName,
-        day_name: dayName,
-        employee_name: employeeName ?? "",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "shift_name,position_name,day_name" }
-    );
-
-  if (error) return NextResponse.json({ error: "تعذر الحفظ" }, { status: 500 });
-
-  return NextResponse.json({ ok: true });
 }
 
 // نشر / إلغاء نشر الجدول (فقط للمدير)
@@ -91,4 +61,23 @@ export async function POST(request) {
   if (error) return NextResponse.json({ error: "تعذر التحديث" }, { status: 500 });
 
   return NextResponse.json({ ok: true, isPublished: !!publish });
+}
+
+// تغيير رمز الدخول المكوّن من 4 أرقام (فقط للمدير)
+export async function PATCH(request) {
+  const session = await getSession(request);
+  if (!session || session.accessRole !== "admin") {
+    return NextResponse.json({ error: "هذا الإجراء للمدير فقط" }, { status: 403 });
+  }
+
+  const { viewPin } = await request.json();
+  if (!viewPin || !/^\d{4}$/.test(viewPin)) {
+    return NextResponse.json({ error: "الرمز يجب أن يكون 4 أرقام" }, { status: 400 });
+  }
+
+  const supabase = getSupabaseServer();
+  const { error } = await supabase.from("schedule_status").update({ view_pin: viewPin }).eq("id", 1);
+
+  if (error) return NextResponse.json({ error: "تعذر التحديث" }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }
