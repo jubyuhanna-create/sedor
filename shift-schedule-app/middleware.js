@@ -15,7 +15,12 @@ async function verify(token, secret) {
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/login") || pathname.startsWith("/api/login")) {
+  if (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/api/login") ||
+    pathname.startsWith("/gate") ||
+    pathname.startsWith("/api/gate-login")
+  ) {
     return NextResponse.next();
   }
 
@@ -25,8 +30,8 @@ export async function middleware(request) {
   const valid = token && secret ? await verify(token, secret) : false;
 
   if (!valid) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+    const gateUrl = new URL("/gate", request.url);
+    return NextResponse.redirect(gateUrl);
   }
 
   return NextResponse.next();
