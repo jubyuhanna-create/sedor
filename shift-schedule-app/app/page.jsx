@@ -8,8 +8,10 @@ export default function HomePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
-  const [entries, setEntries] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [isPublished, setIsPublished] = useState(false);
+  const [viewPin, setViewPin] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -21,13 +23,15 @@ export default function HomePage() {
     try {
       const res = await fetch("/api/schedule");
       if (res.status === 401) {
-        router.push("/login");
+        router.push("/gate");
         return;
       }
       const data = await res.json();
       setSession(data.session);
-      setEntries(data.entries || []);
+      setAssignments(data.assignments || []);
+      setStaff(data.staff || []);
       setIsPublished(data.isPublished);
+      setViewPin(data.viewPin || "");
     } catch {
       setError("تعذر تحميل الجدول");
     } finally {
@@ -37,7 +41,7 @@ export default function HomePage() {
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });
-    router.push("/login");
+    router.push("/gate");
   }
 
   if (loading) {
@@ -59,10 +63,11 @@ export default function HomePage() {
   return (
     <ScheduleTable
       session={session}
-      initialEntries={entries}
+      initialAssignments={assignments}
+      initialStaff={staff}
       initialPublished={isPublished}
+      initialViewPin={viewPin}
       onLogout={handleLogout}
-      onReload={loadSchedule}
     />
   );
 }
