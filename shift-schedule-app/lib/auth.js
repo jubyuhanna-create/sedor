@@ -5,12 +5,17 @@ const alg = "HS256";
 
 function getSecretKey() {
   const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET غير موجود في .env.local");
+  if (!secret) throw new Error("SESSION_SECRET לא קיים ב-.env.local");
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken({ username, displayName, accessRole }) {
-  return await new SignJWT({ username, displayName, accessRole })
+export async function createSessionToken({ username, displayName, accessRole, allowedPositions }) {
+  return await new SignJWT({
+    username,
+    displayName,
+    accessRole,
+    allowedPositions: allowedPositions || [],
+  })
     .setProtectedHeader({ alg })
     .setIssuedAt()
     .setExpirationTime("30d")
