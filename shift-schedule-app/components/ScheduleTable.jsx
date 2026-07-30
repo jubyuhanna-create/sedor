@@ -39,7 +39,14 @@ export default function ScheduleTable({
   const [busyKey, setBusyKey] = useState(null);
 
   const isAdmin = session?.accessRole === "admin";
-  const canEdit = isAdmin && !isPublished;
+  const allowedPositions = session?.allowedPositions || [];
+
+  // بيرجع true إذا المستخدم الحالي مسموحله يعدل هالقسم بالذات
+  function canEditPosition(position) {
+    if (isPublished) return false;
+    if (isAdmin) return true;
+    return allowedPositions.includes(position);
+  }
 
   function availableStaff(position, currentList) {
     const takenIds = new Set(currentList.map((p) => p.staffId));
@@ -84,6 +91,9 @@ export default function ScheduleTable({
           ...prev,
           [key]: prev[key].filter((p) => p.id !== assignmentId),
         }));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "حدث خطأ");
       }
     } finally {
       setBusyKey(null);
@@ -203,7 +213,7 @@ export default function ScheduleTable({
                   key={shift}
                   shift={shift}
                   assignmentMap={assignmentMap}
-                  canEdit={canEdit}
+                  canEditPosition={canEditPosition}
                   busyKey={busyKey}
                   availableStaff={availableStaff}
                   onAdd={handleAdd}
@@ -218,7 +228,7 @@ export default function ScheduleTable({
   );
 }
 
-function RowsForShift({ shift, assignmentMap, canEdit, busyKey, availableStaff, onAdd, onRemove }) {
+function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availableStaff, onAdd, onRemove }) {
   return (
     <>
       <tr>
@@ -229,61 +239,64 @@ function RowsForShift({ shift, assignmentMap, canEdit, busyKey, availableStaff, 
           {shift}
         </td>
       </tr>
-      {POSITIONS.map((position) => (
-        <tr key={position} className="hover:bg-gray-800/30">
-          <td className="sticky right-0 bg-gray-900 text-gray-300 font-medium p-3 border-b border-gray-800/70 align-top">
-            {position}
-          </td>
-          {DAYS.map((day) => {
-            const key = `${shift}|${position}|${day}`;
-            const list = assignmentMap[key] || [];
-            const options = canEdit ? availableStaff(position, list) : [];
-            return (
-              <td key={day} className="p-1.5 border-b border-gray-800/70 align-top">
-                <div className="flex flex-col gap-1">
-                  {list.map((person) => (
-                    <span
-                      key={person.id}
-                      className="flex items-center justify-between gap-1 bg-gray-800 rounded-md px-2 py-1 text-xs"
-                    >
-                      <span className="text-gray-100">{person.name}</span>
-                      {canEdit && (
-                        <button
-                          onClick={() => onRemove(shift, position, day, person.id)}
-                          className="text-gray-500 hover:text-red-400 leading-none"
-                          aria-label="הסר"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </span>
-                  ))}
+      {POSITIONS.map((position) => {
+        const rowCanEdit = canEditPosition(position);
+        return (
+          <tr key={position} className="hover:bg-gray-800/30">
+            <td className="sticky right-0 bg-gray-900 text-gray-300 font-medium p-3 border-b border-gray-800/70 align-top">
+              {position}
+            </td>
+            {DAYS.map((day) => {
+              const key = `${shift}|${position}|${day}`;
+              const list = assignmentMap[key] || [];
+              const options = rowCanEdit ? availableStaff(position, list) : [];
+              return (
+                <td key={day} className="p-1.5 border-b border-gray-800/70 align-top">
+                  <div className="flex flex-col gap-1">
+                    {list.map((person) => (
+                      <span
+                        key={person.id}
+                        className="flex items-center justify-between gap-1 bg-gray-800 rounded-md px-2 py-1 text-xs"
+                      >
+                        <span className="text-gray-100">{person.name}</span>
+                        {rowCanEdit && (
+                          <button
+                            onClick={() => onRemove(shift, position, day, person.id)}
+                            className="text-gray-500 hover:text-red-400 leading-none"
+                            aria-label="הסר"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
 
-                  {list.length === 0 && !canEdit && (
-                    <span className="text-gray-600 italic text-xs">—</span>
-                  )}
+                    {list.length === 0 && !rowCanEdit && (
+                      <span className="text-gray-600 italic text-xs">—</span>
+                    )}
 
-                  {canEdit && (
-                    <select
-                      value=""
-                      disabled={busyKey === key}
-                      onChange={(e) => onAdd(shift, position, day, e.target.value)}
-                      className="w-full bg-gray-900 text-gray-400 text-xs rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none px-1.5 py-1"
-                    >
-                      <option value="">+ הוסף</option>
-                      {options.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </td>
-            );
-          })}
-        </tr>
-      ))}
+                    {rowCanEdit && (
+                      <select
+                        value=""
+                        disabled={busyKey === key}
+                        onChange={(e) => onAdd(shift, position, day, e.target.value)}
+                        className="w-full bg-gray-900 text-gray-400 text-xs rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none px-1.5 py-1"
+                      >
+                        <option value="">+ הוסף</option>
+                        {options.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })}
     </>
   );
 }
