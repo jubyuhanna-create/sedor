@@ -17,20 +17,27 @@ async function isEditable(supabase) {
   return !status?.is_published;
 }
 
+function canManagePosition(session, positionName) {
+  if (session.accessRole === "admin") return true;
+  return Array.isArray(session.allowedPositions) && session.allowedPositions.includes(positionName);
+}
+
 export async function POST(request) {
   const session = await getSession(request);
-  if (!session || session.accessRole !== "admin") {
-    return NextResponse.json({ error: "هذا الإجراء للمدير فقط" }, { status: 403 });
-  }
+  if (!session) return NextResponse.json({ error: "אין הרשאה" }, { status: 401 });
 
   const supabase = getSupabaseServer();
   if (!(await isEditable(supabase))) {
-    return NextResponse.json({ error: "الجدول منشور، لا يمكن التعديل" }, { status: 409 });
+    return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
   }
 
   const { shiftName, positionName, dayName, staffId } = await request.json();
   if (!shiftName || !positionName || !dayName || !staffId) {
-    return NextResponse.json({ error: "بيانات ناقصة" }, { status: 400 });
+    return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
+  }
+
+  if (!canManagePosition(session, positionName)) {
+    return NextResponse.json({ error: "אין לך הרשאה למחלקה הזו" }, { status: 403 });
   }
 
   const { data, error } = await supabase
@@ -45,28 +52,38 @@ export async function POST(request) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: "الموظف مضاف أصلاً بهذه الخانة" }, { status: 409 });
+    return NextResponse.json({ error: "העובד כבר משובץ בתא הזה" }, { status: 409 });
   }
-
   return NextResponse.json({ assignment: data });
 }
 
 export async function DELETE(request) {
   const session = await getSession(request);
-  if (!session || session.accessRole !== "admin") {
-    return NextResponse.json({ error: "هذا الإجراء للمدير فقط" }, { status: 403 });
-  }
+  if (!session) return NextResponse.json({ error: "אין הרשאה" }, { status: 401 });
 
   const supabase = getSupabaseServer();
   if (!(await isEditable(supabase))) {
-    return NextResponse.json({ error: "الجدول منشور، لا يمكن التعديل" }, { status: 409 });
+    return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
   }
 
   const { id } = await request.json();
-  if (!id) return NextResponse.json({ error: "بيانات ناقصة" }, { status: 400 });
+  if (!id) return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from("schedule_assignments")
+    .select("position_name")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !existing) {
+    return NextResponse.json({ error: "השיבוץ לא נמצא" }, { status: 404 });
+  }
+
+  if (!canManagePosition(session, existing.position_name)) {
+    return NextResponse.json({ error: "אין לך הרשאה למחלקה הזו" }, { status: 403 });
+  }
 
   const { error } = await supabase.from("schedule_assignments").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: "تعذر الحذف" }, { status: 500 });
-
+  if (error) return NextResponse.json({ error: "המחיקה נכשלה" }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
