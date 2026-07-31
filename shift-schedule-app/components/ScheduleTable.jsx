@@ -6,6 +6,27 @@ const DAYS = ["שני", "שלישי", "רביעי", "חמישי", "שישי", "�
 const SHIFTS = ["משמרת בוקר", "משמרת ערב"];
 const POSITIONS = ["מלצרים", "בר", "מטבח", "טאבון / שטיפה", "מנהל"];
 
+function generateTimeOptions(shift) {
+  const pad = (n) => String(n).padStart(2, "0");
+  if (shift === "משמרת בוקר") {
+    const opts = ["פתיחה"];
+    for (let h = 7; h < 16; h++) {
+      opts.push(`${pad(h)}:00`);
+      opts.push(`${pad(h)}:30`);
+    }
+    opts.push("16:00");
+    return opts;
+  }
+  // משמרת ערב: 16:00 עד 00:00, בלי פתיחה
+  const opts = [];
+  for (let h = 16; h < 24; h++) {
+    opts.push(`${pad(h)}:00`);
+    opts.push(`${pad(h)}:30`);
+  }
+  opts.push("00:00");
+  return opts;
+}
+
 function buildAssignmentMap(assignments) {
   const map = {};
   SHIFTS.forEach((shift) =>
@@ -18,7 +39,12 @@ function buildAssignmentMap(assignments) {
   assignments.forEach((a) => {
     const key = `${a.shift_name}|${a.position_name}|${a.day_name}`;
     if (key in map) {
-      map[key].push({ id: a.id, staffId: a.staff_id, name: a.staff_members?.name || "" });
+      map[key].push({
+        id: a.id,
+        staffId: a.staff_id,
+        name: a.staff_members?.name || "",
+        shiftTime: a.shift_time || "",
+      });
     }
   });
   return map;
@@ -41,7 +67,6 @@ export default function ScheduleTable({
   const isAdmin = session?.accessRole === "admin";
   const allowedPositions = session?.allowedPositions || [];
 
-  // بيرجع true إذا المستخدم الحالي مسموحله يعدل هالقسم بالذات
   function canEditPosition(position) {
     if (isPublished) return false;
     if (isAdmin) return true;
@@ -53,21 +78,29 @@ export default function ScheduleTable({
     return staffList.filter((s) => s.position_name === position && !takenIds.has(s.id));
   }
 
-  async function handleAdd(shift, position, day, staffId) {
-    if (!staffId) return;
+  async function handleAdd(shift, position, day, staffId, shiftTime) {
+    if (!staffId || !shiftTime) return;
     const key = `${shift}|${position}|${day}`;
     setBusyKey(key);
     try {
       const res = await fetch("/api/assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shiftName: shift, positionName: position, dayName: day, staffId }),
+        body: JSON.stringify({ shiftName: shift, positionName: position, dayName: day, staffId, shiftTime }),
       });
       const data = await res.json();
       if (res.ok) {
         setAssignmentMap((prev) => ({
           ...prev,
-          [key]: [...prev[key], { id: data.assignment.id, staffId, name: data.assignment.staff_members?.name || "" }],
+          [key]: [
+            ...prev[key],
+            {
+              id: data.assignment.id,
+              staffId,
+              name: data.assignment.staff_members?.name || "",
+              shiftTime: data.assignment.shift_time || shiftTime,
+            },
+          ],
         }));
       } else {
         alert(data.error || "حدث خطأ");
@@ -258,7 +291,12 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
                         key={person.id}
                         className="flex items-center justify-between gap-1 bg-gray-800 rounded-md px-2 py-1 text-xs"
                       >
-                        <span className="text-gray-100">{person.name}</span>
+                        <span className="flex flex-col leading-tight">
+                          <span className="text-gray-100">{person.name}</span>
+                          {person.shiftTime && (
+                            <span className="text-[10px] text-blue-300">{person.shiftTime}</span>
+                          )}
+                        </span>
                         {rowCanEdit && (
                           <button
                             onClick={() => onRemove(shift, position, day, person.id)}
@@ -276,19 +314,14 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
                     )}
 
                     {rowCanEdit && (
-                      <select
-                        value=""
-                        disabled={busyKey === key}
-                        onChange={(e) => onAdd(shift, position, day, e.target.value)}
-                        className="w-full bg-gray-900 text-gray-400 text-xs rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none px-1.5 py-1"
-                      >
-                        <option value="">+ הוסף</option>
-                        {options.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
+                      <AddSlot
+                        shift={shift}
+                        position={position}
+                        day={day}
+                        options={options}
+                        busy={busyKey === key}
+                        onAdd={onAdd}
+                      />
                     )}
                   </div>
                 </td>
@@ -298,6 +331,61 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
         );
       })}
     </>
+  );
+}
+
+function AddSlot({ shift, position, day, options, busy, onAdd }) {
+  const [pendingStaffId, setPendingStaffId] = useState("");
+  const timeOptions = generateTimeOptions(shift);
+
+  if (!pendingStaffId) {
+    return (
+      <select
+        value=""
+        disabled={busy}
+        onChange={(e) => setPendingStaffId(e.target.value)}
+        className="w-full bg-gray-900 text-gray-400 text-xs rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none px-1.5 py-1"
+      >
+        <option value="">+ הוסף</option>
+        {options.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        autoFocus
+        value=""
+        disabled={busy}
+        onChange={(e) => {
+          const time = e.target.value;
+          if (time) {
+            onAdd(shift, position, day, pendingStaffId, time);
+            setPendingStaffId("");
+          }
+        }}
+        className="w-full bg-gray-900 text-blue-300 text-xs rounded-md border border-blue-700 focus:border-blue-500 focus:outline-none px-1.5 py-1"
+      >
+        <option value="">בחר שעה</option>
+        {timeOptions.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+      <button
+        onClick={() => setPendingStaffId("")}
+        className="text-gray-500 hover:text-red-400 text-xs leading-none"
+        aria-label="ביטול"
+      >
+        ×
+      </button>
+    </div>
   );
 }
 
