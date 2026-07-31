@@ -5,16 +5,14 @@ import { createSessionToken, SESSION_COOKIE } from "../../../lib/auth";
 
 export async function POST(request) {
   const { username, password } = await request.json();
-
   if (!username || !password) {
     return NextResponse.json({ error: "الرجاء إدخال اسم المستخدم وكلمة المرور" }, { status: 400 });
   }
 
   const supabase = getSupabaseServer();
-
   const { data: employee, error } = await supabase
     .from("employees")
-    .select("username, password_hash, display_name, access_role")
+    .select("username, password_hash, display_name, access_role, allowed_positions")
     .eq("username", username)
     .single();
 
@@ -31,6 +29,7 @@ export async function POST(request) {
     username: employee.username,
     displayName: employee.display_name,
     accessRole: employee.access_role,
+    allowedPositions: employee.allowed_positions || [],
   });
 
   const response = NextResponse.json({
@@ -38,7 +37,6 @@ export async function POST(request) {
     displayName: employee.display_name,
     accessRole: employee.access_role,
   });
-
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -46,6 +44,5 @@ export async function POST(request) {
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
   });
-
   return response;
 }
