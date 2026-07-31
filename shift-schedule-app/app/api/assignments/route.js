@@ -31,8 +31,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
   }
 
-  const { shiftName, positionName, dayName, staffId } = await request.json();
-  if (!shiftName || !positionName || !dayName || !staffId) {
+  const { shiftName, positionName, dayName, staffId, shiftTime } = await request.json();
+  if (!shiftName || !positionName || !dayName || !staffId || !shiftTime) {
     return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
   }
 
@@ -47,8 +47,9 @@ export async function POST(request) {
       position_name: positionName,
       day_name: dayName,
       staff_id: staffId,
+      shift_time: shiftTime,
     })
-    .select("id, staff_id, staff_members(name)")
+    .select("id, staff_id, shift_time, staff_members(name)")
     .single();
 
   if (error) {
