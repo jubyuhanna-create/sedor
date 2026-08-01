@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import InstallGuideButton from "../../components/InstallGuideButton";
 
 export default function GatePage() {
   const router = useRouter();
@@ -82,6 +83,10 @@ export default function GatePage() {
           <a href="/login" className="text-xs text-gray-500 hover:text-[#90d3d9] underline transition">
             אני מנהל — התחברות
           </a>
+        </div>
+
+        <div className="pt-1">
+          <InstallGuideButton />
         </div>
       </form>
     </div>
