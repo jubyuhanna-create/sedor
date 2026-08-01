@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase";
 import { verifySessionToken, SESSION_COOKIE } from "../../../lib/auth";
+import { getCurrentWeekStartKey, getNextWeekStartKey } from "../../../lib/weeks";
 
 async function getSession(request) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -8,13 +9,17 @@ async function getSession(request) {
   return await verifySessionToken(token);
 }
 
-async function isPublishedNow(supabase) {
-  const { data: status } = await supabase
-    .from("schedule_status")
+function isValidWeekStart(weekStart) {
+  return weekStart === getCurrentWeekStartKey() || weekStart === getNextWeekStartKey();
+}
+
+async function isWeekPublished(supabase, weekStart) {
+  const { data } = await supabase
+    .from("schedule_weeks")
     .select("is_published")
-    .eq("id", 1)
+    .eq("week_start", weekStart)
     .single();
-  return !!status?.is_published;
+  return !!data?.is_published;
 }
 
 function canManagePosition(session, positionName) {
@@ -26,25 +31,27 @@ export async function POST(request) {
   const session = await getSession(request);
   if (!session) return NextResponse.json({ error: "אין הרשאה" }, { status: 401 });
 
-  const { shiftName, positionName, dayName, staffId, shiftTime } = await request.json();
-  if (!shiftName || !positionName || !dayName || !staffId || !shiftTime) {
+  const { weekStart, shiftName, positionName, dayName, staffId, shiftTime } = await request.json();
+  if (!weekStart || !shiftName || !positionName || !dayName || !staffId || !shiftTime) {
     return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
   }
-
+  if (!isValidWeekStart(weekStart)) {
+    return NextResponse.json({ error: "שבוع לא תקין" }, { status: 400 });
+  }
   if (!canManagePosition(session, positionName)) {
     return NextResponse.json({ error: "אין לך הרשאה למחלקה הזו" }, { status: 403 });
   }
 
   const supabase = getSupabaseServer();
 
-  // ה-admin כפוף למצב הפרסום, בעל הרשאת מחלקה יכול לערוך תמיד
-  if (session.accessRole === "admin" && (await isPublishedNow(supabase))) {
+  if (session.accessRole === "admin" && (await isWeekPublished(supabase, weekStart))) {
     return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
   }
 
   const { data, error } = await supabase
     .from("schedule_assignments")
     .insert({
+      week_start: weekStart,
       shift_name: shiftName,
       position_name: positionName,
       day_name: dayName,
@@ -71,7 +78,7 @@ export async function DELETE(request) {
 
   const { data: existing, error: fetchErr } = await supabase
     .from("schedule_assignments")
-    .select("position_name")
+    .select("position_name, week_start")
     .eq("id", id)
     .single();
 
@@ -83,7 +90,7 @@ export async function DELETE(request) {
     return NextResponse.json({ error: "אין לך הרשאה למחלקה הזו" }, { status: 403 });
   }
 
-  if (session.accessRole === "admin" && (await isPublishedNow(supabase))) {
+  if (session.accessRole === "admin" && (await isWeekPublished(supabase, existing.week_start))) {
     return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
   }
 
