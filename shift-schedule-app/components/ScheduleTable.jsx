@@ -87,8 +87,7 @@ export default function ScheduleTable({
   const weekDateLabels = getWeekDateLabels();
 
   function canEditPosition(position) {
-    if (isPublished) return false;
-    if (isAdmin) return true;
+    if (isAdmin) return !isPublished;
     return allowedPositions.includes(position);
   }
 
