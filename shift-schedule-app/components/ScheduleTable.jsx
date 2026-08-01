@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { DAYS, getWeekDateLabels } from "../lib/weeks";
 
-const DAYS = ["שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון"];
 const SHIFTS = ["משמרת בוקר", "משמרת ערב"];
 const POSITIONS = ["מלצרים", "בר", "מטבח", "טאבון / שטיפה", "מנהל"];
 
@@ -26,25 +26,6 @@ function generateTimeOptions(shift) {
   return opts;
 }
 
-// מחזיר מיפוי { שם יום -> "יום/חודש" } עבור השבוע הנוכחי (שני עד ראשון).
-// מבוסס על תאריך היום בפועל, אז מתעדכן לבד משבוע לשבוע.
-function getWeekDateLabels() {
-  const today = new Date();
-  const jsDay = today.getDay();
-  const diffToMonday = jsDay === 0 ? 6 : jsDay - 1;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - diffToMonday);
-  monday.setHours(0, 0, 0, 0);
-
-  const labels = {};
-  DAYS.forEach((day, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    labels[day] = `${d.getDate()}/${d.getMonth() + 1}`;
-  });
-  return labels;
-}
-
 function buildAssignmentMap(assignments) {
   const map = {};
   SHIFTS.forEach((shift) =>
@@ -54,7 +35,7 @@ function buildAssignmentMap(assignments) {
       })
     )
   );
-  assignments.forEach((a) => {
+  (assignments || []).forEach((a) => {
     const key = `${a.shift_name}|${a.position_name}|${a.day_name}`;
     if (key in map) {
       map[key].push({
@@ -68,26 +49,37 @@ function buildAssignmentMap(assignments) {
   return map;
 }
 
+function buildWeekState(weekData) {
+  return {
+    weekStart: weekData.weekStart,
+    isPublished: weekData.isPublished,
+    assignmentMap: buildAssignmentMap(weekData.assignments),
+  };
+}
+
 export default function ScheduleTable({
   session,
-  initialAssignments,
+  initialWeeks,
   initialStaff,
-  initialPublished,
   initialViewPin,
   onLogout,
 }) {
-  const [assignmentMap, setAssignmentMap] = useState(() => buildAssignmentMap(initialAssignments));
+  const [current, setCurrent] = useState(() => buildWeekState(initialWeeks.current));
+  const [next, setNext] = useState(() => buildWeekState(initialWeeks.next));
+  const [activeTab, setActiveTab] = useState("current"); // "current" | "next"
   const [staffList, setStaffList] = useState(initialStaff);
-  const [isPublished, setIsPublished] = useState(initialPublished);
   const [publishing, setPublishing] = useState(false);
   const [busyKey, setBusyKey] = useState(null);
 
   const isAdmin = session?.accessRole === "admin";
   const allowedPositions = session?.allowedPositions || [];
-  const weekDateLabels = getWeekDateLabels();
+
+  const week = activeTab === "current" ? current : next;
+  const setWeek = activeTab === "current" ? setCurrent : setNext;
+  const weekDateLabels = getWeekDateLabels(week.weekStart);
 
   function canEditPosition(position) {
-    if (isAdmin) return !isPublished;
+    if (isAdmin) return !week.isPublished;
     return allowedPositions.includes(position);
   }
 
@@ -104,21 +96,31 @@ export default function ScheduleTable({
       const res = await fetch("/api/assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shiftName: shift, positionName: position, dayName: day, staffId, shiftTime }),
+        body: JSON.stringify({
+          weekStart: week.weekStart,
+          shiftName: shift,
+          positionName: position,
+          dayName: day,
+          staffId,
+          shiftTime,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
-        setAssignmentMap((prev) => ({
+        setWeek((prev) => ({
           ...prev,
-          [key]: [
-            ...prev[key],
-            {
-              id: data.assignment.id,
-              staffId,
-              name: data.assignment.staff_members?.name || "",
-              shiftTime: data.assignment.shift_time || shiftTime,
-            },
-          ],
+          assignmentMap: {
+            ...prev.assignmentMap,
+            [key]: [
+              ...prev.assignmentMap[key],
+              {
+                id: data.assignment.id,
+                staffId,
+                name: data.assignment.staff_members?.name || "",
+                shiftTime: data.assignment.shift_time || shiftTime,
+              },
+            ],
+          },
         }));
       } else {
         alert(data.error || "אירעה שגיאה");
@@ -138,9 +140,12 @@ export default function ScheduleTable({
         body: JSON.stringify({ id: assignmentId }),
       });
       if (res.ok) {
-        setAssignmentMap((prev) => ({
+        setWeek((prev) => ({
           ...prev,
-          [key]: prev[key].filter((p) => p.id !== assignmentId),
+          assignmentMap: {
+            ...prev.assignmentMap,
+            [key]: prev.assignmentMap[key].filter((p) => p.id !== assignmentId),
+          },
         }));
       } else {
         const data = await res.json().catch(() => ({}));
@@ -169,13 +174,15 @@ export default function ScheduleTable({
     });
     if (res.ok) {
       setStaffList((prev) => prev.filter((s) => s.id !== id));
-      setAssignmentMap((prev) => {
-        const next = {};
-        Object.keys(prev).forEach((key) => {
-          next[key] = prev[key].filter((p) => p.staffId !== id);
+      const stripStaff = (weekState) => {
+        const nextMap = {};
+        Object.keys(weekState.assignmentMap).forEach((key) => {
+          nextMap[key] = weekState.assignmentMap[key].filter((p) => p.staffId !== id);
         });
-        return next;
-      });
+        return { ...weekState, assignmentMap: nextMap };
+      };
+      setCurrent(stripStaff);
+      setNext(stripStaff);
     }
   }
 
@@ -185,10 +192,12 @@ export default function ScheduleTable({
       const res = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publish: !isPublished }),
+        body: JSON.stringify({ weekStart: week.weekStart, publish: !week.isPublished }),
       });
       const data = await res.json();
-      if (res.ok) setIsPublished(data.isPublished);
+      if (res.ok) {
+        setWeek((prev) => ({ ...prev, isPublished: data.isPublished }));
+      }
     } finally {
       setPublishing(false);
     }
@@ -216,12 +225,12 @@ export default function ScheduleTable({
                 onClick={togglePublish}
                 disabled={publishing}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50 ${
-                  isPublished
+                  week.isPublished
                     ? "bg-[#1c3f4f] text-gray-200 hover:bg-[#254d5f]"
                     : "bg-[#90d3d9] text-[#0c2635] hover:bg-[#7cc3ca]"
                 }`}
               >
-                {publishing ? "..." : isPublished ? "חזרה לעריכה" : "פרסם"}
+                {publishing ? "..." : week.isPublished ? "חזרה לעריכה" : "פרסם"}
               </button>
             )}
             <button
@@ -233,7 +242,37 @@ export default function ScheduleTable({
           </div>
         </div>
 
-        {isPublished && (
+        {/* تبويبات الأسبوع */}
+        <div className="flex gap-2 bg-[#123244] border border-[#1c3f4f] rounded-2xl p-1.5">
+          <button
+            onClick={() => setActiveTab("current")}
+            className={`flex-1 px-4 py-2 rounded-xl text-sm font-semibold transition ${
+              activeTab === "current"
+                ? "bg-[#90d3d9] text-[#0c2635]"
+                : "text-gray-300 hover:bg-[#1c3f4f]"
+            }`}
+          >
+            השבוع הנוכחי
+            {current.isPublished && (
+              <span className="mr-1 text-[10px] opacity-70">(פורסם)</span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("next")}
+            className={`flex-1 px-4 py-2 rounded-xl text-sm font-semibold transition ${
+              activeTab === "next"
+                ? "bg-[#90d3d9] text-[#0c2635]"
+                : "text-gray-300 hover:bg-[#1c3f4f]"
+            }`}
+          >
+            השבוع הבא
+            {next.isPublished && (
+              <span className="mr-1 text-[10px] opacity-70">(פורסם)</span>
+            )}
+          </button>
+        </div>
+
+        {week.isPublished && (
           <div className="text-sm text-[#90d3d9] bg-[#90d3d9]/10 border border-[#90d3d9]/30 rounded-lg px-4 py-2">
             הסידור פורסם — תצוגה בלבד
           </div>
@@ -273,7 +312,7 @@ export default function ScheduleTable({
                 <RowsForShift
                   key={shift}
                   shift={shift}
-                  assignmentMap={assignmentMap}
+                  assignmentMap={week.assignmentMap}
                   canEditPosition={canEditPosition}
                   busyKey={busyKey}
                   availableStaff={availableStaff}
