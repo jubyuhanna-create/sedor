@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -12,12 +11,10 @@ export default function GatePage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-
     if (!/^\d{4}$/.test(pin)) {
-      setError("الرمز يجب أن يكون 4 أرقام");
+      setError("הקוד חייב להיות 4 ספרות");
       return;
     }
-
     setLoading(true);
     try {
       const res = await fetch("/api/gate-login", {
@@ -26,29 +23,36 @@ export default function GatePage() {
         body: JSON.stringify({ pin }),
       });
       const data = await res.json();
-
       if (!res.ok) {
-        setError(data.error || "حدث خطأ");
+        setError(data.error || "אירעה שגיאה");
         setLoading(false);
         return;
       }
-
       router.push("/");
       router.refresh();
     } catch {
-      setError("تعذر الاتصال بالسيرفر");
+      setError("לא ניתן להתחבר לשרת");
       setLoading(false);
     }
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div dir="rtl" className="min-h-screen bg-[#0c2635] flex items-center justify-center p-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4"
+        className="w-full max-w-sm bg-[#123244] border border-[#1c3f4f] rounded-2xl p-7 space-y-5 shadow-2xl shadow-black/30"
       >
-        <h1 className="text-xl font-bold text-white text-center">סידור עבודה</h1>
-        <p className="text-sm text-gray-400 text-center">أدخل الرمز المكوّن من 4 أرقام لعرض الجدول</p>
+        <div className="flex flex-col items-center gap-3 mb-1">
+          <div className="w-20 h-20 rounded-2xl bg-[#90d3d9] p-2.5 flex items-center justify-center shadow-lg shadow-[#90d3d9]/20">
+            <img src="/logo.png" alt="רסיس" className="w-full h-full object-contain rounded-xl" />
+          </div>
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-white tracking-tight">מסעדת רסיס</h1>
+            <p className="text-xs text-[#90d3d9] font-medium mt-0.5">לוח משמרות שבועי</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-gray-400 text-center">הזן קוד בן 4 ספרות לצפייה בסידור</p>
 
         <input
           type="text"
@@ -56,12 +60,12 @@ export default function GatePage() {
           maxLength={4}
           value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-          className="w-full bg-gray-800 text-gray-100 text-center text-2xl tracking-[0.5em] rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none px-3 py-3"
+          className="w-full bg-[#0c2635] text-white text-center text-2xl tracking-[0.5em] rounded-xl border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-3 py-3 transition"
           autoFocus
         />
 
         {error && (
-          <div className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded-lg px-3 py-2 text-center">
+          <div className="text-sm text-red-300 bg-red-950/40 border border-red-900/60 rounded-lg px-3 py-2 text-center">
             {error}
           </div>
         )}
@@ -69,14 +73,14 @@ export default function GatePage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 transition"
+          className="w-full bg-[#90d3d9] hover:bg-[#7cc3ca] disabled:opacity-50 text-[#0c2635] font-bold rounded-xl py-3 transition"
         >
-          {loading ? "..." : "دخول"}
+          {loading ? "..." : "כניסה"}
         </button>
 
-        <div className="text-center pt-2">
-          <a href="/login" className="text-xs text-gray-500 hover:text-gray-300 underline">
-            أنا مدير — تسجيل دخول
+        <div className="text-center pt-1">
+          <a href="/login" className="text-xs text-gray-500 hover:text-[#90d3d9] underline transition">
+            אני מנהל — התחברות
           </a>
         </div>
       </form>
