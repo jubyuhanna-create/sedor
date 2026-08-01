@@ -252,7 +252,7 @@ export default function ScheduleTable({
                 : "text-gray-300 hover:bg-[#1c3f4f]"
             }`}
           >
-            השבוع הנוכחי
+            השבוע הנוכחי
             {current.isPublished && (
               <span className="mr-1 text-[10px] opacity-70">(פורסם)</span>
             )}
@@ -265,7 +265,7 @@ export default function ScheduleTable({
                 : "text-gray-300 hover:bg-[#1c3f4f]"
             }`}
           >
-            השבוع הבא
+            השבוע הבא
             {next.isPublished && (
               <span className="mr-1 text-[10px] opacity-70">(פורסם)</span>
             )}
@@ -491,7 +491,125 @@ function StaffManager({ staffList, onAdd, onDelete, viewPin }) {
           </div>
         ))}
       </div>
+
+      <div className="border-t border-[#1c3f4f] pt-4">
+        <h3 className="text-white font-bold mb-3">יצירת משתמש חדש</h3>
+        <CreateUserForm />
+      </div>
     </div>
+  );
+}
+
+const ROLE_OPTIONS = [
+  { key: "kitchen", label: "אחראי מטבח" },
+  { key: "bar", label: "אחראי בר" },
+  { key: "admin", label: "מנהל" },
+];
+
+function CreateUserForm() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [roleKey, setRoleKey] = useState(ROLE_OPTIONS[0].key);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [msgIsError, setMsgIsError] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setMsg("");
+    if (!username.trim() || !password.trim() || !displayName.trim()) {
+      setMsg("יש למלא את כל השדות");
+      setMsgIsError(true);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+          displayName: displayName.trim(),
+          roleKey,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMsg("המשתמש נוצר בהצלחה");
+        setMsgIsError(false);
+        setUsername("");
+        setPassword("");
+        setDisplayName("");
+        setRoleKey(ROLE_OPTIONS[0].key);
+      } else {
+        setMsg(data.error || "אירעה שגיאה");
+        setMsgIsError(true);
+      }
+    } catch {
+      setMsg("לא ניתן להתחבר לשרת");
+      setMsgIsError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-end">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-400">שם משתמש</label>
+        <input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-400">סיסמה</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-400">שם תצוגה</label>
+        <input
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-400">תפקיד</label>
+        <select
+          value={roleKey}
+          onChange={(e) => setRoleKey(e.target.value)}
+          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5"
+        >
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r.key} value={r.key}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="sm:col-span-2 lg:col-span-4 flex items-center gap-3 pt-1">
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-[#90d3d9] hover:bg-[#7cc3ca] disabled:opacity-50 text-[#0c2635] font-bold text-sm rounded-md px-4 py-1.5 transition"
+        >
+          {saving ? "..." : "יצירת משתמש"}
+        </button>
+        {msg && (
+          <span className={`text-xs ${msgIsError ? "text-red-400" : "text-[#90d3d9]"}`}>{msg}</span>
+        )}
+      </div>
+    </form>
   );
 }
 
