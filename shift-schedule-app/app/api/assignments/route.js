@@ -8,13 +8,13 @@ async function getSession(request) {
   return await verifySessionToken(token);
 }
 
-async function isEditable(supabase) {
+async function isPublishedNow(supabase) {
   const { data: status } = await supabase
     .from("schedule_status")
     .select("is_published")
     .eq("id", 1)
     .single();
-  return !status?.is_published;
+  return !!status?.is_published;
 }
 
 function canManagePosition(session, positionName) {
@@ -26,11 +26,6 @@ export async function POST(request) {
   const session = await getSession(request);
   if (!session) return NextResponse.json({ error: "אין הרשאה" }, { status: 401 });
 
-  const supabase = getSupabaseServer();
-  if (!(await isEditable(supabase))) {
-    return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
-  }
-
   const { shiftName, positionName, dayName, staffId, shiftTime } = await request.json();
   if (!shiftName || !positionName || !dayName || !staffId || !shiftTime) {
     return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
@@ -38,6 +33,13 @@ export async function POST(request) {
 
   if (!canManagePosition(session, positionName)) {
     return NextResponse.json({ error: "אין לך הרשאה למחלקה הזו" }, { status: 403 });
+  }
+
+  const supabase = getSupabaseServer();
+
+  // ה-admin כפוף למצב הפרסום, בעל הרשאת מחלקה יכול לערוך תמיד
+  if (session.accessRole === "admin" && (await isPublishedNow(supabase))) {
+    return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
   }
 
   const { data, error } = await supabase
@@ -62,13 +64,10 @@ export async function DELETE(request) {
   const session = await getSession(request);
   if (!session) return NextResponse.json({ error: "אין הרשאה" }, { status: 401 });
 
-  const supabase = getSupabaseServer();
-  if (!(await isEditable(supabase))) {
-    return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
-  }
-
   const { id } = await request.json();
   if (!id) return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
+
+  const supabase = getSupabaseServer();
 
   const { data: existing, error: fetchErr } = await supabase
     .from("schedule_assignments")
@@ -82,6 +81,10 @@ export async function DELETE(request) {
 
   if (!canManagePosition(session, existing.position_name)) {
     return NextResponse.json({ error: "אין לך הרשאה למחלקה הזו" }, { status: 403 });
+  }
+
+  if (session.accessRole === "admin" && (await isPublishedNow(supabase))) {
+    return NextResponse.json({ error: "הסידור פורסם, לא ניתן לערוך" }, { status: 409 });
   }
 
   const { error } = await supabase.from("schedule_assignments").delete().eq("id", id);
