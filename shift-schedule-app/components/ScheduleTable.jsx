@@ -6,6 +6,15 @@ import { DAYS, getWeekDateLabels } from "../lib/weeks";
 const SHIFTS = ["משמרת בוקר", "משמרת ערב"];
 const POSITIONS = ["מלצרים", "בר", "מטבח", "טאבון / שטיפה", "מנהל"];
 
+// צבע עדין לכל תפקיד — נקודה קטנה + פס גבול, לא רקע מלא ולא צבעוני מדי
+const POSITION_COLORS = {
+  "מלצרים": "#6f9bd1",
+  "בר": "#d1a24a",
+  "מטבח": "#d1785a",
+  "טאבון / שטיפה": "#9b8ad1",
+  "מנהל": "#7fbfae",
+};
+
 function generateTimeOptions(shift) {
   const pad = (n) => String(n).padStart(2, "0");
   if (shift === "משמרת בוקר") {
@@ -341,10 +350,20 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
       </tr>
       {POSITIONS.map((position) => {
         const rowCanEdit = canEditPosition(position);
+        const color = POSITION_COLORS[position];
         return (
           <tr key={position} className="hover:bg-[#0c2635]/40">
-            <td className="sticky right-0 bg-[#123244] text-gray-300 font-medium p-3 border-b border-[#1c3f4f]/70 align-top">
-              {position}
+            <td
+              className="sticky right-0 bg-[#123244] text-gray-300 font-medium p-3 border-b border-[#1c3f4f]/70 align-top"
+              style={{ borderRight: `3px solid ${color}` }}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className="inline-block w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                {position}
+              </span>
             </td>
             {DAYS.map((day) => {
               const key = `${shift}|${position}|${day}`;
@@ -356,7 +375,11 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
                     {list.map((person) => (
                       <span
                         key={person.id}
-                        className="flex items-center justify-between gap-1 bg-[#0c2635] rounded-md px-2 py-1 text-xs"
+                        className="flex items-center justify-between gap-1 rounded-md px-2 py-1 text-xs"
+                        style={{
+                          backgroundColor: `${color}22`,
+                          borderRight: `2px solid ${color}`,
+                        }}
                       >
                         <span className="flex flex-col leading-tight">
                           <span className="text-gray-100">{person.name}</span>
@@ -457,45 +480,71 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
 }
 
 function StaffManager({ staffList, onAdd, onDelete, viewPin }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl p-4 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 p-4 hover:bg-[#0c2635]/30 transition"
+      >
         <h2 className="text-white font-bold">ניהול עובדים</h2>
-        <PinManager currentPin={viewPin} />
-      </div>
+        <span className="text-[#90d3d9] text-sm flex items-center gap-1.5">
+          {open ? "סגור" : "פתח"}
+          <span className={`inline-block transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+        </span>
+      </button>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {POSITIONS.map((position) => (
-          <div key={position} className="space-y-2">
-            <h3 className="text-[#90d3d9] text-sm font-semibold">{position}</h3>
-            <div className="flex flex-wrap gap-1 min-h-[24px]">
-              {staffList
-                .filter((s) => s.position_name === position)
-                .map((s) => (
-                  <span
-                    key={s.id}
-                    className="flex items-center gap-1 bg-[#0c2635] rounded-md px-2 py-1 text-xs text-gray-200"
-                  >
-                    {s.name}
-                    <button
-                      onClick={() => onDelete(s.id)}
-                      className="text-gray-500 hover:text-red-400 leading-none"
-                      aria-label="מחק"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-            </div>
-            <AddStaffForm position={position} onAdd={onAdd} />
+      {open && (
+        <div className="p-4 pt-0 space-y-4">
+          <div className="flex justify-end">
+            <PinManager currentPin={viewPin} />
           </div>
-        ))}
-      </div>
 
-      <div className="border-t border-[#1c3f4f] pt-4">
-        <h3 className="text-white font-bold mb-3">יצירת משתמש חדש</h3>
-        <CreateUserForm />
-      </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {POSITIONS.map((position) => {
+              const color = POSITION_COLORS[position];
+              return (
+                <div key={position} className="space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color }}>
+                    <span
+                      className="inline-block w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    {position}
+                  </h3>
+                  <div className="flex flex-wrap gap-1 min-h-[24px]">
+                    {staffList
+                      .filter((s) => s.position_name === position)
+                      .map((s) => (
+                        <span
+                          key={s.id}
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-200"
+                          style={{ backgroundColor: `${color}22`, borderRight: `2px solid ${color}` }}
+                        >
+                          {s.name}
+                          <button
+                            onClick={() => onDelete(s.id)}
+                            className="text-gray-500 hover:text-red-400 leading-none"
+                            aria-label="מחק"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                  </div>
+                  <AddStaffForm position={position} onAdd={onAdd} />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="border-t border-[#1c3f4f] pt-4">
+            <h3 className="text-white font-bold mb-3">יצירת משתמש חדש</h3>
+            <CreateUserForm />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
