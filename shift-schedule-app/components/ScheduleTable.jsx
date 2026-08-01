@@ -17,7 +17,6 @@ function generateTimeOptions(shift) {
     opts.push("16:00");
     return opts;
   }
-  // משמרת ערב: 16:00 עד 00:00, בלי פתיחה
   const opts = [];
   for (let h = 16; h < 24; h++) {
     opts.push(`${pad(h)}:00`);
@@ -31,7 +30,7 @@ function generateTimeOptions(shift) {
 // מבוסס על תאריך היום בפועל, אז מתעדכן לבד משבוע לשבוע.
 function getWeekDateLabels() {
   const today = new Date();
-  const jsDay = today.getDay(); // 0=ראשון, 1=שני, ... 6=שבת
+  const jsDay = today.getDay();
   const diffToMonday = jsDay === 0 ? 6 : jsDay - 1;
   const monday = new Date(today);
   monday.setDate(today.getDate() - diffToMonday);
@@ -123,7 +122,7 @@ export default function ScheduleTable({
           ],
         }));
       } else {
-        alert(data.error || "حدث خطأ");
+        alert(data.error || "אירעה שגיאה");
       }
     } finally {
       setBusyKey(null);
@@ -146,7 +145,7 @@ export default function ScheduleTable({
         }));
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "حدث خطأ");
+        alert(data.error || "אירעה שגיאה");
       }
     } finally {
       setBusyKey(null);
@@ -197,12 +196,19 @@ export default function ScheduleTable({
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gray-950 text-gray-100 p-4 sm:p-6 font-sans">
+    <div dir="rtl" className="min-h-screen bg-[#0c2635] text-gray-100 p-4 sm:p-6 font-sans">
       <div className="max-w-6xl mx-auto space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div>
-            <h1 className="text-xl font-bold text-white">סידור עבודה שבועי</h1>
-            <p className="text-sm text-gray-400">{isAdmin ? "מנהל" : "עובד"}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#123244] border border-[#1c3f4f] rounded-2xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-[#90d3d9] p-1.5 flex items-center justify-center shrink-0">
+              <img src="/logo.png" alt="רסיס" className="w-full h-full object-contain rounded-lg" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white leading-tight">מסעדת רסיס</h1>
+              <p className="text-xs text-[#90d3d9] font-medium">
+                {isAdmin ? "מנהל" : "אחראי משמרות"}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -212,8 +218,8 @@ export default function ScheduleTable({
                 disabled={publishing}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50 ${
                   isPublished
-                    ? "bg-gray-700 text-gray-200 hover:bg-gray-600"
-                    : "bg-emerald-600 text-white hover:bg-emerald-500"
+                    ? "bg-[#1c3f4f] text-gray-200 hover:bg-[#254d5f]"
+                    : "bg-[#90d3d9] text-[#0c2635] hover:bg-[#7cc3ca]"
                 }`}
               >
                 {publishing ? "..." : isPublished ? "חזרה לעריכה" : "פרסם"}
@@ -221,15 +227,15 @@ export default function ScheduleTable({
             )}
             <button
               onClick={onLogout}
-              className="px-4 py-1.5 rounded-lg text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition"
+              className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[#1c3f4f] text-gray-300 hover:bg-[#254d5f] transition"
             >
-              خروج
+              יציאה
             </button>
           </div>
         </div>
 
         {isPublished && (
-          <div className="text-sm text-emerald-400 bg-emerald-950/40 border border-emerald-900 rounded-lg px-4 py-2">
+          <div className="text-sm text-[#90d3d9] bg-[#90d3d9]/10 border border-[#90d3d9]/30 rounded-lg px-4 py-2">
             הסידור פורסם — תצוגה בלבד
           </div>
         )}
@@ -243,20 +249,20 @@ export default function ScheduleTable({
           />
         )}
 
-        <div className="overflow-x-auto bg-gray-900 border border-gray-800 rounded-xl">
+        <div className="overflow-x-auto bg-[#123244] border border-[#1c3f4f] rounded-2xl">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                <th className="sticky right-0 bg-gray-900 text-right text-gray-400 font-medium p-3 border-b border-gray-800 min-w-[130px]">
+                <th className="sticky right-0 bg-[#123244] text-right text-gray-400 font-medium p-3 border-b border-[#1c3f4f] min-w-[130px]">
                   תפקיד
                 </th>
                 {DAYS.map((day) => (
                   <th
                     key={day}
-                    className="text-center text-gray-300 font-semibold p-3 border-b border-gray-800 min-w-[140px]"
+                    className="text-center text-gray-300 font-semibold p-3 border-b border-[#1c3f4f] min-w-[140px]"
                   >
                     <div>{day}</div>
-                    <div className="text-xs text-gray-500 font-normal mt-0.5">
+                    <div className="text-xs text-[#90d3d9]/70 font-normal mt-0.5">
                       {weekDateLabels[day]}
                     </div>
                   </th>
@@ -290,7 +296,7 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
       <tr>
         <td
           colSpan={DAYS.length + 1}
-          className="bg-gray-800/70 text-blue-300 font-bold p-2.5 border-y border-gray-700"
+          className="bg-[#0c2635] text-[#90d3d9] font-bold p-2.5 border-y border-[#1c3f4f]"
         >
           {shift}
         </td>
@@ -298,8 +304,8 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
       {POSITIONS.map((position) => {
         const rowCanEdit = canEditPosition(position);
         return (
-          <tr key={position} className="hover:bg-gray-800/30">
-            <td className="sticky right-0 bg-gray-900 text-gray-300 font-medium p-3 border-b border-gray-800/70 align-top">
+          <tr key={position} className="hover:bg-[#0c2635]/40">
+            <td className="sticky right-0 bg-[#123244] text-gray-300 font-medium p-3 border-b border-[#1c3f4f]/70 align-top">
               {position}
             </td>
             {DAYS.map((day) => {
@@ -307,17 +313,17 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
               const list = assignmentMap[key] || [];
               const options = rowCanEdit ? availableStaff(position, list) : [];
               return (
-                <td key={day} className="p-1.5 border-b border-gray-800/70 align-top">
+                <td key={day} className="p-1.5 border-b border-[#1c3f4f]/70 align-top">
                   <div className="flex flex-col gap-1">
                     {list.map((person) => (
                       <span
                         key={person.id}
-                        className="flex items-center justify-between gap-1 bg-gray-800 rounded-md px-2 py-1 text-xs"
+                        className="flex items-center justify-between gap-1 bg-[#0c2635] rounded-md px-2 py-1 text-xs"
                       >
                         <span className="flex flex-col leading-tight">
                           <span className="text-gray-100">{person.name}</span>
                           {person.shiftTime && (
-                            <span className="text-[10px] text-blue-300">{person.shiftTime}</span>
+                            <span className="text-[10px] text-[#90d3d9]">{person.shiftTime}</span>
                           )}
                         </span>
                         {rowCanEdit && (
@@ -367,7 +373,7 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
         value=""
         disabled={busy}
         onChange={(e) => setPendingStaffId(e.target.value)}
-        className="w-full bg-gray-900 text-gray-400 text-xs rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none px-1.5 py-1"
+        className="w-full bg-[#0c2635] text-gray-400 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-1.5 py-1"
       >
         <option value="">+ הוסף</option>
         {options.map((s) => (
@@ -392,7 +398,7 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
             setPendingStaffId("");
           }
         }}
-        className="w-full bg-gray-900 text-blue-300 text-xs rounded-md border border-blue-700 focus:border-blue-500 focus:outline-none px-1.5 py-1"
+        className="w-full bg-[#0c2635] text-[#90d3d9] text-xs rounded-md border border-[#90d3d9]/60 focus:border-[#90d3d9] focus:outline-none px-1.5 py-1"
       >
         <option value="">בחר שעה</option>
         {timeOptions.map((t) => (
@@ -414,23 +420,23 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
 
 function StaffManager({ staffList, onAdd, onDelete, viewPin }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-4">
+    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-white font-bold">إدارة الموظفين</h2>
+        <h2 className="text-white font-bold">ניהול עובדים</h2>
         <PinManager currentPin={viewPin} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {POSITIONS.map((position) => (
           <div key={position} className="space-y-2">
-            <h3 className="text-blue-300 text-sm font-semibold">{position}</h3>
+            <h3 className="text-[#90d3d9] text-sm font-semibold">{position}</h3>
             <div className="flex flex-wrap gap-1 min-h-[24px]">
               {staffList
                 .filter((s) => s.position_name === position)
                 .map((s) => (
                   <span
                     key={s.id}
-                    className="flex items-center gap-1 bg-gray-800 rounded-md px-2 py-1 text-xs text-gray-200"
+                    className="flex items-center gap-1 bg-[#0c2635] rounded-md px-2 py-1 text-xs text-gray-200"
                   >
                     {s.name}
                     <button
@@ -467,12 +473,12 @@ function AddStaffForm({ position, onAdd }) {
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="اسم جديد"
-        className="flex-1 min-w-0 bg-gray-800 text-gray-100 text-xs rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none px-2 py-1"
+        placeholder="שם חדש"
+        className="flex-1 min-w-0 bg-[#0c2635] text-gray-100 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1"
       />
       <button
         type="submit"
-        className="shrink-0 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded-md px-2.5"
+        className="shrink-0 bg-[#90d3d9] hover:bg-[#7cc3ca] text-[#0c2635] font-bold text-xs rounded-md px-2.5"
       >
         +
       </button>
@@ -487,7 +493,7 @@ function PinManager({ currentPin }) {
 
   async function save() {
     if (!/^\d{4}$/.test(pin)) {
-      setMsg("لازم 4 أرقام");
+      setMsg("חייב 4 ספרות");
       return;
     }
     setSaving(true);
@@ -498,7 +504,7 @@ function PinManager({ currentPin }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ viewPin: pin }),
       });
-      setMsg(res.ok ? "تم الحفظ" : "خطأ بالحفظ");
+      setMsg(res.ok ? "נשמר" : "שגיאה בשמירה");
     } finally {
       setSaving(false);
     }
@@ -506,18 +512,18 @@ function PinManager({ currentPin }) {
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="text-gray-400">רمز الدخول:</span>
+      <span className="text-gray-400">קוד כניסה:</span>
       <input
         value={pin}
         onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-        className="w-16 bg-gray-800 text-gray-100 text-center rounded-md border border-gray-700 px-2 py-1"
+        className="w-16 bg-[#0c2635] text-gray-100 text-center rounded-md border border-[#1c3f4f] px-2 py-1"
       />
       <button
         onClick={save}
         disabled={saving}
-        className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-200 rounded-md px-3 py-1"
+        className="bg-[#1c3f4f] hover:bg-[#254d5f] disabled:opacity-50 text-gray-200 rounded-md px-3 py-1"
       >
-        {saving ? "..." : "حفظ"}
+        {saving ? "..." : "שמור"}
       </button>
       {msg && <span className="text-xs text-gray-500">{msg}</span>}
     </div>
