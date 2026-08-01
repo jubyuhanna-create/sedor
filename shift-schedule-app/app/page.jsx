@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ScheduleTable from "../components/ScheduleTable";
@@ -33,7 +32,7 @@ export default function HomePage() {
       setIsPublished(data.isPublished);
       setViewPin(data.viewPin || "");
     } catch {
-      setError("تعذر تحميل الجدول");
+      setError("לא ניתן לטעון את הסידור");
     } finally {
       setLoading(false);
     }
@@ -46,15 +45,16 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div dir="rtl" className="min-h-screen bg-gray-950 text-gray-400 flex items-center justify-center">
-        جاري التحميل...
+      <div dir="rtl" className="min-h-screen bg-[#0c2635] text-[#90d3d9] flex flex-col items-center justify-center gap-3">
+        <img src="/logo.png" alt="רסיס" className="w-14 h-14 rounded-xl opacity-80" />
+        <p className="text-sm text-gray-400">טוען...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div dir="rtl" className="min-h-screen bg-gray-950 text-red-400 flex items-center justify-center">
+      <div dir="rtl" className="min-h-screen bg-[#0c2635] text-red-300 flex items-center justify-center">
         {error}
       </div>
     );
