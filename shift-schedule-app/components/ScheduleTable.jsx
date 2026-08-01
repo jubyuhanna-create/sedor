@@ -27,6 +27,25 @@ function generateTimeOptions(shift) {
   return opts;
 }
 
+// מחזיר מיפוי { שם יום -> "יום/חודש" } עבור השבוע הנוכחי (שני עד ראשון).
+// מבוסס על תאריך היום בפועל, אז מתעדכן לבד משבוע לשבוע.
+function getWeekDateLabels() {
+  const today = new Date();
+  const jsDay = today.getDay(); // 0=ראשון, 1=שני, ... 6=שבת
+  const diffToMonday = jsDay === 0 ? 6 : jsDay - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const labels = {};
+  DAYS.forEach((day, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    labels[day] = `${d.getDate()}/${d.getMonth() + 1}`;
+  });
+  return labels;
+}
+
 function buildAssignmentMap(assignments) {
   const map = {};
   SHIFTS.forEach((shift) =>
@@ -66,6 +85,7 @@ export default function ScheduleTable({
 
   const isAdmin = session?.accessRole === "admin";
   const allowedPositions = session?.allowedPositions || [];
+  const weekDateLabels = getWeekDateLabels();
 
   function canEditPosition(position) {
     if (isPublished) return false;
@@ -235,7 +255,10 @@ export default function ScheduleTable({
                     key={day}
                     className="text-center text-gray-300 font-semibold p-3 border-b border-gray-800 min-w-[140px]"
                   >
-                    {day}
+                    <div>{day}</div>
+                    <div className="text-xs text-gray-500 font-normal mt-0.5">
+                      {weekDateLabels[day]}
+                    </div>
                   </th>
                 ))}
               </tr>
