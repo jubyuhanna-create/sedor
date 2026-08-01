@@ -1,0 +1,21 @@
+{
+  "name": "מסעדת רסיס — סידור עבודה",
+  "short_name": "רסיס",
+  "description": "מערכת סידור עבודה שבועית — מסעדת רסיס",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c2635",
+  "theme_color": "#90d3d9",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
