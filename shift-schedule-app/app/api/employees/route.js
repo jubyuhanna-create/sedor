@@ -16,6 +16,39 @@ const ROLE_MAP = {
   admin: { accessRole: "admin", allowedPositions: [] },
 };
 
+// הופך access_role + allowed_positions בחזרה לתווית תפקיד קריאה
+function roleLabel(accessRole, allowedPositions) {
+  if (accessRole === "admin") return "מנהל";
+  const positions = allowedPositions || [];
+  if (positions.includes("מטבח")) return "אחראי מטבח";
+  if (positions.includes("בר")) return "אחראי בר";
+  return "עובד";
+}
+
+export async function GET(request) {
+  const session = await getSession(request);
+  if (!session || session.accessRole !== "admin") {
+    return NextResponse.json({ error: "הפעולה מותרת למנהל בלבד" }, { status: 403 });
+  }
+
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from("employees")
+    .select("id, username, display_name, access_role, allowed_positions, created_at")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return NextResponse.json({ error: "טעינת החשבונות נכשלה" }, { status: 500 });
+  }
+
+  const employees = data.map((e) => ({
+    ...e,
+    role_label: roleLabel(e.access_role, e.allowed_positions),
+  }));
+
+  return NextResponse.json({ employees });
+}
+
 export async function POST(request) {
   const session = await getSession(request);
   if (!session || session.accessRole !== "admin") {
@@ -68,4 +101,36 @@ export async function POST(request) {
   }
 
   return NextResponse.json({ employee: data });
+}
+
+export async function DELETE(request) {
+  const session = await getSession(request);
+  if (!session || session.accessRole !== "admin") {
+    return NextResponse.json({ error: "הפעולה מותרת למנהל בלבד" }, { status: 403 });
+  }
+
+  const { id } = await request.json();
+  if (!id) return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
+
+  const supabase = getSupabaseServer();
+
+  const { data: target, error: fetchErr } = await supabase
+    .from("employees")
+    .select("username")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !target) {
+    return NextResponse.json({ error: "החשבון לא נמצא" }, { status: 404 });
+  }
+
+  // מניעת מחיקה עצמית — כדי שמנהל לא ינעל את עצמו בטעות
+  if (target.username === session.username) {
+    return NextResponse.json({ error: "אי אפשר למחוק את החשבון שאיתו אתה מחובר כרגע" }, { status: 400 });
+  }
+
+  const { error } = await supabase.from("employees").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: "המחיקה נכשלה" }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
 }
