@@ -1,3 +1,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0c2635;
+}
+::-webkit-scrollbar-thumb {
+  background: #1c3f4f;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #254d5f;
+}
