@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { DAYS, getWeekDateLabels } from "../lib/weeks";
+import { useToast, useConfirm } from "./UIProvider";
 
 const SHIFTS = ["משמרת בוקר", "משמרת ערב"];
 const POSITIONS = ["מלצרים", "בר", "מטבח", "טאבון / שטיפה", "מנהל"];
 
-// צבע עדין לכל תפקיד — נקודה קטנה + פס גבול, לא רקע מלא ולא צבעוני מדי
 const POSITION_COLORS = {
   "מלצרים": "#6f9bd1",
   "בר": "#d1a24a",
@@ -73,9 +73,12 @@ export default function ScheduleTable({
   initialViewPin,
   onLogout,
 }) {
+  const showToast = useToast();
+  const confirmDialog = useConfirm();
+
   const [current, setCurrent] = useState(() => buildWeekState(initialWeeks.current));
   const [next, setNext] = useState(() => buildWeekState(initialWeeks.next));
-  const [activeTab, setActiveTab] = useState("current"); // "current" | "next"
+  const [activeTab, setActiveTab] = useState("current");
   const [staffList, setStaffList] = useState(initialStaff);
   const [publishing, setPublishing] = useState(false);
   const [busyKey, setBusyKey] = useState(null);
@@ -132,7 +135,7 @@ export default function ScheduleTable({
           },
         }));
       } else {
-        alert(data.error || "אירעה שגיאה");
+        showToast(data.error || "אירעה שגיאה", "error");
       }
     } finally {
       setBusyKey(null);
@@ -158,7 +161,7 @@ export default function ScheduleTable({
         }));
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "אירעה שגיאה");
+        showToast(data.error || "אירעה שגיאה", "error");
       }
     } finally {
       setBusyKey(null);
@@ -172,7 +175,11 @@ export default function ScheduleTable({
       body: JSON.stringify({ name, positionName }),
     });
     const data = await res.json();
-    if (res.ok) setStaffList((prev) => [...prev, data.staff]);
+    if (res.ok) {
+      setStaffList((prev) => [...prev, data.staff]);
+    } else {
+      showToast(data.error || "אירעה שגיאה", "error");
+    }
   }
 
   async function handleDeleteStaff(id) {
@@ -192,6 +199,9 @@ export default function ScheduleTable({
       };
       setCurrent(stripStaff);
       setNext(stripStaff);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || "אירעה שגיאה", "error");
     }
   }
 
@@ -206,6 +216,9 @@ export default function ScheduleTable({
       const data = await res.json();
       if (res.ok) {
         setWeek((prev) => ({ ...prev, isPublished: data.isPublished }));
+        showToast(data.isPublished ? "הסידור פורסם" : "חזרת לעריכה", "success");
+      } else {
+        showToast(data.error || "אירעה שגיאה", "error");
       }
     } finally {
       setPublishing(false);
@@ -215,7 +228,7 @@ export default function ScheduleTable({
   return (
     <div dir="rtl" className="min-h-screen bg-[#0c2635] text-gray-100 p-4 sm:p-6 font-sans">
       <div className="max-w-6xl mx-auto space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#123244] border border-[#1c3f4f] rounded-2xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#123244] border border-[#1c3f4f] rounded-2xl p-4 animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-[#90d3d9] p-1.5 flex items-center justify-center shrink-0">
               <img src="/logo.png" alt="רסיס" className="w-full h-full object-contain rounded-lg" />
@@ -233,7 +246,7 @@ export default function ScheduleTable({
               <button
                 onClick={togglePublish}
                 disabled={publishing}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50 ${
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50 active:scale-95 ${
                   week.isPublished
                     ? "bg-[#1c3f4f] text-gray-200 hover:bg-[#254d5f]"
                     : "bg-[#90d3d9] text-[#0c2635] hover:bg-[#7cc3ca]"
@@ -244,15 +257,14 @@ export default function ScheduleTable({
             )}
             <button
               onClick={onLogout}
-              className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[#1c3f4f] text-gray-300 hover:bg-[#254d5f] transition"
+              className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[#1c3f4f] text-gray-300 hover:bg-[#254d5f] transition active:scale-95"
             >
               יציאה
             </button>
           </div>
         </div>
 
-        {/* تبويبات الأسبوع */}
-        <div className="flex gap-2 bg-[#123244] border border-[#1c3f4f] rounded-2xl p-1.5">
+        <div className="flex gap-2 bg-[#123244] border border-[#1c3f4f] rounded-2xl p-1.5 animate-fade-in">
           <button
             onClick={() => setActiveTab("current")}
             className={`flex-1 px-4 py-2 rounded-xl text-sm font-semibold transition ${
@@ -262,9 +274,7 @@ export default function ScheduleTable({
             }`}
           >
             השבוע הנוכחי
-            {current.isPublished && (
-              <span className="mr-1 text-[10px] opacity-70">(פורסם)</span>
-            )}
+            {current.isPublished && <span className="mr-1 text-[10px] opacity-70">(פורסם)</span>}
           </button>
           <button
             onClick={() => setActiveTab("next")}
@@ -275,14 +285,12 @@ export default function ScheduleTable({
             }`}
           >
             השבוע הבא
-            {next.isPublished && (
-              <span className="mr-1 text-[10px] opacity-70">(פורסם)</span>
-            )}
+            {next.isPublished && <span className="mr-1 text-[10px] opacity-70">(פורסם)</span>}
           </button>
         </div>
 
         {week.isPublished && (
-          <div className="text-sm text-[#90d3d9] bg-[#90d3d9]/10 border border-[#90d3d9]/30 rounded-lg px-4 py-2">
+          <div className="text-sm text-[#90d3d9] bg-[#90d3d9]/10 border border-[#90d3d9]/30 rounded-lg px-4 py-2 animate-fade-in">
             הסידור פורסם — תצוגה בלבד
           </div>
         )}
@@ -293,12 +301,20 @@ export default function ScheduleTable({
             onAdd={handleAddStaff}
             onDelete={handleDeleteStaff}
             viewPin={initialViewPin}
+            confirmDialog={confirmDialog}
+            showToast={showToast}
           />
         )}
 
-        {isAdmin && <AccountsManager currentUsername={session?.username} />}
+        {isAdmin && (
+          <AccountsManager
+            currentUsername={session?.username}
+            confirmDialog={confirmDialog}
+            showToast={showToast}
+          />
+        )}
 
-        <div className="overflow-x-auto bg-[#123244] border border-[#1c3f4f] rounded-2xl">
+        <div key={activeTab} className="overflow-x-auto bg-[#123244] border border-[#1c3f4f] rounded-2xl animate-fade-in">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
@@ -354,7 +370,7 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
         const rowCanEdit = canEditPosition(position);
         const color = POSITION_COLORS[position];
         return (
-          <tr key={position} className="hover:bg-[#0c2635]/40">
+          <tr key={position} className="hover:bg-[#0c2635]/40 transition-colors">
             <td
               className="sticky right-0 bg-[#123244] text-gray-300 font-medium p-3 border-b border-[#1c3f4f]/70 align-top"
               style={{ borderRight: `3px solid ${color}` }}
@@ -377,7 +393,7 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
                     {list.map((person) => (
                       <span
                         key={person.id}
-                        className="flex items-center justify-between gap-1 rounded-md px-2 py-1 text-xs"
+                        className="flex items-center justify-between gap-1 rounded-md px-2 py-1 text-xs animate-slide-up"
                         style={{
                           backgroundColor: `${color}22`,
                           borderRight: `2px solid ${color}`,
@@ -392,7 +408,7 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
                         {rowCanEdit && (
                           <button
                             onClick={() => onRemove(shift, position, day, person.id)}
-                            className="text-gray-500 hover:text-red-400 leading-none"
+                            className="text-gray-500 hover:text-red-400 leading-none transition"
                             aria-label="הסר"
                           >
                             ×
@@ -436,7 +452,7 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
         value=""
         disabled={busy}
         onChange={(e) => setPendingStaffId(e.target.value)}
-        className="w-full bg-[#0c2635] text-gray-400 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-1.5 py-1"
+        className="w-full bg-[#0c2635] text-gray-400 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-1.5 py-1 transition"
       >
         <option value="">+ הוסף</option>
         {options.map((s) => (
@@ -449,7 +465,7 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1 animate-fade-in">
       <select
         autoFocus
         value=""
@@ -461,7 +477,7 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
             setPendingStaffId("");
           }
         }}
-        className="w-full bg-[#0c2635] text-[#90d3d9] text-xs rounded-md border border-[#90d3d9]/60 focus:border-[#90d3d9] focus:outline-none px-1.5 py-1"
+        className="w-full bg-[#0c2635] text-[#90d3d9] text-xs rounded-md border border-[#90d3d9]/60 focus:border-[#90d3d9] focus:outline-none px-1.5 py-1 transition"
       >
         <option value="">בחר שעה</option>
         {timeOptions.map((t) => (
@@ -472,7 +488,7 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
       </select>
       <button
         onClick={() => setPendingStaffId("")}
-        className="text-gray-500 hover:text-red-400 text-xs leading-none"
+        className="text-gray-500 hover:text-red-400 text-xs leading-none transition"
         aria-label="ביטול"
       >
         ×
@@ -481,11 +497,16 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
   );
 }
 
-function StaffManager({ staffList, onAdd, onDelete, viewPin }) {
+function StaffManager({ staffList, onAdd, onDelete, viewPin, confirmDialog, showToast }) {
   const [open, setOpen] = useState(false);
 
+  async function handleDelete(s) {
+    const ok = await confirmDialog(`למחוק את "${s.name}"?`);
+    if (ok) onDelete(s.id);
+  }
+
   return (
-    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl overflow-hidden">
+    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl overflow-hidden animate-fade-in">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-3 p-4 hover:bg-[#0c2635]/30 transition"
@@ -498,9 +519,9 @@ function StaffManager({ staffList, onAdd, onDelete, viewPin }) {
       </button>
 
       {open && (
-        <div className="p-4 pt-0 space-y-4">
+        <div className="p-4 pt-0 space-y-4 animate-slide-up">
           <div className="flex justify-end">
-            <PinManager currentPin={viewPin} />
+            <PinManager currentPin={viewPin} showToast={showToast} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -526,8 +547,8 @@ function StaffManager({ staffList, onAdd, onDelete, viewPin }) {
                         >
                           {s.name}
                           <button
-                            onClick={() => onDelete(s.id)}
-                            className="text-gray-500 hover:text-red-400 leading-none"
+                            onClick={() => handleDelete(s)}
+                            className="text-gray-500 hover:text-red-400 leading-none transition"
                             aria-label="מחק"
                           >
                             ×
@@ -543,7 +564,7 @@ function StaffManager({ staffList, onAdd, onDelete, viewPin }) {
 
           <div className="border-t border-[#1c3f4f] pt-4">
             <h3 className="text-white font-bold mb-3">יצירת משתמש חדש</h3>
-            <CreateUserForm />
+            <CreateUserForm showToast={showToast} />
           </div>
         </div>
       )}
@@ -557,7 +578,7 @@ const ROLE_OPTIONS = [
   { key: "admin", label: "מנהל" },
 ];
 
-function AccountsManager({ currentUsername }) {
+function AccountsManager({ currentUsername, confirmDialog, showToast }) {
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -591,7 +612,8 @@ function AccountsManager({ currentUsername }) {
   }
 
   async function handleDelete(emp) {
-    if (!confirm(`למחוק את המשתמש "${emp.display_name}" (${emp.username})?`)) return;
+    const ok = await confirmDialog(`למחוק את המשתמש "${emp.display_name}" (${emp.username})?`);
+    if (!ok) return;
     setDeletingId(emp.id);
     try {
       const res = await fetch("/api/employees", {
@@ -602,8 +624,9 @@ function AccountsManager({ currentUsername }) {
       const data = await res.json();
       if (res.ok) {
         setEmployees((prev) => prev.filter((e) => e.id !== emp.id));
+        showToast("המשתמש נמחק", "success");
       } else {
-        alert(data.error || "אירעה שגיאה");
+        showToast(data.error || "אירעה שגיאה", "error");
       }
     } finally {
       setDeletingId(null);
@@ -611,7 +634,7 @@ function AccountsManager({ currentUsername }) {
   }
 
   return (
-    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl overflow-hidden">
+    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl overflow-hidden animate-fade-in">
       <button
         onClick={handleToggle}
         className="w-full flex items-center justify-between gap-3 p-4 hover:bg-[#0c2635]/30 transition"
@@ -624,8 +647,14 @@ function AccountsManager({ currentUsername }) {
       </button>
 
       {open && (
-        <div className="p-4 pt-0">
-          {loading && <p className="text-gray-500 text-sm">טוען...</p>}
+        <div className="p-4 pt-0 animate-slide-up">
+          {loading && (
+            <div className="flex gap-1.5 py-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:300ms]" />
+            </div>
+          )}
           {error && <p className="text-red-400 text-sm">{error}</p>}
 
           {!loading && !error && employees.length === 0 && (
@@ -654,7 +683,7 @@ function AccountsManager({ currentUsername }) {
                     <button
                       onClick={() => handleDelete(emp)}
                       disabled={deletingId === emp.id}
-                      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 shrink-0"
+                      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 shrink-0 transition"
                     >
                       {deletingId === emp.id ? "..." : "מחיקה"}
                     </button>
@@ -669,21 +698,17 @@ function AccountsManager({ currentUsername }) {
   );
 }
 
-function CreateUserForm() {
+function CreateUserForm({ showToast }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [roleKey, setRoleKey] = useState(ROLE_OPTIONS[0].key);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [msgIsError, setMsgIsError] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setMsg("");
     if (!username.trim() || !password.trim() || !displayName.trim()) {
-      setMsg("יש למלא את כל השדות");
-      setMsgIsError(true);
+      showToast("יש למלא את כל השדות", "error");
       return;
     }
     setSaving(true);
@@ -700,19 +725,16 @@ function CreateUserForm() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMsg("המשתמש נוצר בהצלחה");
-        setMsgIsError(false);
+        showToast("המשתמש נוצר בהצלחה", "success");
         setUsername("");
         setPassword("");
         setDisplayName("");
         setRoleKey(ROLE_OPTIONS[0].key);
       } else {
-        setMsg(data.error || "אירעה שגיאה");
-        setMsgIsError(true);
+        showToast(data.error || "אירעה שגיאה", "error");
       }
     } catch {
-      setMsg("לא ניתן להתחבר לשרת");
-      setMsgIsError(true);
+      showToast("לא ניתן להתחבר לשרת", "error");
     } finally {
       setSaving(false);
     }
@@ -725,7 +747,7 @@ function CreateUserForm() {
         <input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5"
+          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5 transition"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -734,7 +756,7 @@ function CreateUserForm() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5"
+          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5 transition"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -742,7 +764,7 @@ function CreateUserForm() {
         <input
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5"
+          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5 transition"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -750,7 +772,7 @@ function CreateUserForm() {
         <select
           value={roleKey}
           onChange={(e) => setRoleKey(e.target.value)}
-          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5"
+          className="bg-[#0c2635] text-gray-100 text-sm rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1.5 transition"
         >
           {ROLE_OPTIONS.map((r) => (
             <option key={r.key} value={r.key}>
@@ -764,13 +786,10 @@ function CreateUserForm() {
         <button
           type="submit"
           disabled={saving}
-          className="bg-[#90d3d9] hover:bg-[#7cc3ca] disabled:opacity-50 text-[#0c2635] font-bold text-sm rounded-md px-4 py-1.5 transition"
+          className="bg-[#90d3d9] hover:bg-[#7cc3ca] disabled:opacity-50 text-[#0c2635] font-bold text-sm rounded-md px-4 py-1.5 transition active:scale-95"
         >
           {saving ? "..." : "יצירת משתמש"}
         </button>
-        {msg && (
-          <span className={`text-xs ${msgIsError ? "text-red-400" : "text-[#90d3d9]"}`}>{msg}</span>
-        )}
       </div>
     </form>
   );
@@ -793,11 +812,11 @@ function AddStaffForm({ position, onAdd }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="שם חדש"
-        className="flex-1 min-w-0 bg-[#0c2635] text-gray-100 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1"
+        className="flex-1 min-w-0 bg-[#0c2635] text-gray-100 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1 transition"
       />
       <button
         type="submit"
-        className="shrink-0 bg-[#90d3d9] hover:bg-[#7cc3ca] text-[#0c2635] font-bold text-xs rounded-md px-2.5"
+        className="shrink-0 bg-[#90d3d9] hover:bg-[#7cc3ca] text-[#0c2635] font-bold text-xs rounded-md px-2.5 transition active:scale-95"
       >
         +
       </button>
@@ -805,25 +824,23 @@ function AddStaffForm({ position, onAdd }) {
   );
 }
 
-function PinManager({ currentPin }) {
+function PinManager({ currentPin, showToast }) {
   const [pin, setPin] = useState(currentPin || "");
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
 
   async function save() {
     if (!/^\d{4}$/.test(pin)) {
-      setMsg("חייב 4 ספרות");
+      showToast("חייב 4 ספרות", "error");
       return;
     }
     setSaving(true);
-    setMsg("");
     try {
       const res = await fetch("/api/schedule", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ viewPin: pin }),
       });
-      setMsg(res.ok ? "נשמר" : "שגיאה בשמירה");
+      showToast(res.ok ? "נשמר" : "שגיאה בשמירה", res.ok ? "success" : "error");
     } finally {
       setSaving(false);
     }
@@ -835,16 +852,15 @@ function PinManager({ currentPin }) {
       <input
         value={pin}
         onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-        className="w-16 bg-[#0c2635] text-gray-100 text-center rounded-md border border-[#1c3f4f] px-2 py-1"
+        className="w-16 bg-[#0c2635] text-gray-100 text-center rounded-md border border-[#1c3f4f] px-2 py-1 transition"
       />
       <button
         onClick={save}
         disabled={saving}
-        className="bg-[#1c3f4f] hover:bg-[#254d5f] disabled:opacity-50 text-gray-200 rounded-md px-3 py-1"
+        className="bg-[#1c3f4f] hover:bg-[#254d5f] disabled:opacity-50 text-gray-200 rounded-md px-3 py-1 transition active:scale-95"
       >
         {saving ? "..." : "שמור"}
       </button>
-      {msg && <span className="text-xs text-gray-500">{msg}</span>}
     </div>
   );
 }
