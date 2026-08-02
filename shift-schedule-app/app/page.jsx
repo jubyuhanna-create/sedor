@@ -43,9 +43,15 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div dir="rtl" className="min-h-screen bg-[#0c2635] text-[#90d3d9] flex flex-col items-center justify-center gap-3">
-        <img src="/logo.png" alt="רסיס" className="w-14 h-14 rounded-xl opacity-80" />
-        <p className="text-sm text-gray-400">טוען...</p>
+      <div dir="rtl" className="min-h-screen bg-[#0c2635] flex flex-col items-center justify-center gap-4">
+        <div className="w-14 h-14 rounded-xl bg-[#90d3d9] p-2 animate-pulse">
+          <img src="/logo.png" alt="רסיס" className="w-full h-full object-contain rounded-lg" />
+        </div>
+        <div className="flex gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:0ms]" />
+          <span className="w-2 h-2 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:150ms]" />
+          <span className="w-2 h-2 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:300ms]" />
+        </div>
       </div>
     );
   }
