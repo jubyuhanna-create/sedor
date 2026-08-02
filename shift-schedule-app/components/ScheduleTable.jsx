@@ -296,6 +296,8 @@ export default function ScheduleTable({
           />
         )}
 
+        {isAdmin && <AccountsManager currentUsername={session?.username} />}
+
         <div className="overflow-x-auto bg-[#123244] border border-[#1c3f4f] rounded-2xl">
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -554,6 +556,118 @@ const ROLE_OPTIONS = [
   { key: "bar", label: "אחראי בר" },
   { key: "admin", label: "מנהל" },
 ];
+
+function AccountsManager({ currentUsername }) {
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
+
+  async function loadEmployees() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/employees");
+      const data = await res.json();
+      if (res.ok) {
+        setEmployees(data.employees || []);
+        setLoaded(true);
+      } else {
+        setError(data.error || "אירעה שגיאה");
+      }
+    } catch {
+      setError("לא ניתן להתחבר לשרת");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleToggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !loaded) loadEmployees();
+  }
+
+  async function handleDelete(emp) {
+    if (!confirm(`למחוק את המשתמש "${emp.display_name}" (${emp.username})?`)) return;
+    setDeletingId(emp.id);
+    try {
+      const res = await fetch("/api/employees", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: emp.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEmployees((prev) => prev.filter((e) => e.id !== emp.id));
+      } else {
+        alert(data.error || "אירעה שגיאה");
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl overflow-hidden">
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center justify-between gap-3 p-4 hover:bg-[#0c2635]/30 transition"
+      >
+        <h2 className="text-white font-bold">ניהול חשבונות</h2>
+        <span className="text-[#90d3d9] text-sm flex items-center gap-1.5">
+          {open ? "סגור" : "פתח"}
+          <span className={`inline-block transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+        </span>
+      </button>
+
+      {open && (
+        <div className="p-4 pt-0">
+          {loading && <p className="text-gray-500 text-sm">טוען...</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          {!loading && !error && employees.length === 0 && (
+            <p className="text-gray-500 text-sm">אין חשבונות נוספים</p>
+          )}
+
+          {!loading && employees.length > 0 && (
+            <div className="space-y-2">
+              {employees.map((emp) => (
+                <div
+                  key={emp.id}
+                  className="flex items-center justify-between gap-3 bg-[#0c2635] rounded-lg px-3 py-2"
+                >
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-gray-100 text-sm font-medium">
+                      {emp.display_name}{" "}
+                      {emp.username === currentUsername && (
+                        <span className="text-[#90d3d9] text-xs">(אתה)</span>
+                      )}
+                    </span>
+                    <span className="text-gray-500 text-xs">
+                      {emp.username} · {emp.role_label}
+                    </span>
+                  </div>
+                  {emp.username !== currentUsername && (
+                    <button
+                      onClick={() => handleDelete(emp)}
+                      disabled={deletingId === emp.id}
+                      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 shrink-0"
+                    >
+                      {deletingId === emp.id ? "..." : "מחיקה"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CreateUserForm() {
   const [username, setUsername] = useState("");
