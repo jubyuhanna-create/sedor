@@ -25,7 +25,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "הפעולה מותרת למנהל בלבד" }, { status: 403 });
   }
 
-  const { name, positionName } = await request.json();
+  const { name, positionName, email } = await request.json();
   if (!name || !positionName) {
     return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
   }
@@ -33,11 +33,41 @@ export async function POST(request) {
   const supabase = getSupabaseServer();
   const { data, error } = await supabase
     .from("staff_members")
-    .insert({ name: name.trim(), position_name: positionName })
+    .insert({
+      name: name.trim(),
+      position_name: positionName,
+      email: email ? email.trim() : null,
+    })
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: "ההוספה נכשלה" }, { status: 500 });
+  return NextResponse.json({ staff: data });
+}
+
+// PATCH — עדכון האימייל של עובד קיים (בשלב זה רק האימייל ניתן לעדכון).
+export async function PATCH(request) {
+  const session = await getSession(request);
+  if (!session || session.accessRole !== "admin") {
+    return NextResponse.json({ error: "הפעולה מותרת למנהל בלבד" }, { status: 403 });
+  }
+
+  const { id, email } = await request.json();
+  if (!id) return NextResponse.json({ error: "חסרים נתונים" }, { status: 400 });
+
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: "כתובת אימייל לא תקינה" }, { status: 400 });
+  }
+
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from("staff_members")
+    .update({ email: email ? email.trim() : null })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: "העדכון נכשל" }, { status: 500 });
   return NextResponse.json({ staff: data });
 }
 
