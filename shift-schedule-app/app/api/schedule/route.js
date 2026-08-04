@@ -40,6 +40,10 @@ export async function GET(request) {
     return (weeks || []).find((w) => w.week_start === weekStart)?.is_published ?? false;
   }
 
+  function findReadyPositions(weekStart) {
+    return (weeks || []).find((w) => w.week_start === weekStart)?.ready_positions ?? [];
+  }
+
   return NextResponse.json({
     session,
     staff,
@@ -48,11 +52,13 @@ export async function GET(request) {
       current: {
         weekStart: currentWeekStart,
         isPublished: findPublished(currentWeekStart),
+        readyPositions: findReadyPositions(currentWeekStart),
         assignments: (assignments || []).filter((a) => a.week_start === currentWeekStart),
       },
       next: {
         weekStart: nextWeekStart,
         isPublished: findPublished(nextWeekStart),
+        readyPositions: findReadyPositions(nextWeekStart),
         assignments: (assignments || []).filter((a) => a.week_start === nextWeekStart),
       },
     },
@@ -70,7 +76,7 @@ export async function POST(request) {
   const currentWeekStart = getCurrentWeekStartKey();
   const nextWeekStart = getNextWeekStartKey();
   if (weekStart !== currentWeekStart && weekStart !== nextWeekStart) {
-    return NextResponse.json({ error: "שבוع לא תקין" }, { status: 400 });
+    return NextResponse.json({ error: "שבוע לא תקין" }, { status: 400 });
   }
 
   const supabase = getSupabaseServer();
