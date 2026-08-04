@@ -136,7 +136,7 @@ export default function RequestPage() {
                               : "bg-[#0c2635] text-gray-400 border border-[#1c3f4f]"
                           }`}
                         >
-                          ✅ בדי אשتغل
+                          ✅ אני רוצה לעבוד
                         </button>
                         <button
                           onClick={() => setChoice(day, shift, false)}
@@ -146,7 +146,7 @@ export default function RequestPage() {
                               : "bg-[#0c2635] text-gray-400 border border-[#1c3f4f]"
                           }`}
                         >
-                          ❌ مش متوفر
+                          ❌ לא זמין/ה
                         </button>
                       </div>
                     </div>
