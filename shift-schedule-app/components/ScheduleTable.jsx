@@ -62,6 +62,7 @@ function buildWeekState(weekData) {
   return {
     weekStart: weekData.weekStart,
     isPublished: weekData.isPublished,
+    readyPositions: weekData.readyPositions || [],
     assignmentMap: buildAssignmentMap(weekData.assignments),
   };
 }
@@ -220,6 +221,37 @@ export default function ScheduleTable({
     }
   }
 
+  async function refetchSchedule() {
+    try {
+      const res = await fetch("/api/schedule");
+      if (res.ok) {
+        const data = await res.json();
+        setCurrent(buildWeekState(data.weeks.current));
+        setNext(buildWeekState(data.weeks.next));
+      }
+    } catch {
+      // אם הרענון נכשל, לא קריטי — הנתונים הקיימים נשארים כפי שהם
+    }
+  }
+
+  async function toggleReady(positionName, ready) {
+    try {
+      const res = await fetch("/api/schedule/ready", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekStart: week.weekStart, positionName, ready }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWeek((prev) => ({ ...prev, readyPositions: data.readyPositions }));
+      } else {
+        showToast(data.error || "אירעה שגיאה", "error");
+      }
+    } catch {
+      showToast("לא ניתן להתחבר לשרת", "error");
+    }
+  }
+
   async function togglePublish() {
     setPublishing(true);
     try {
@@ -310,6 +342,15 @@ export default function ScheduleTable({
           </div>
         )}
 
+        {!week.isPublished && (
+          <ReadinessPanel
+            isAdmin={isAdmin}
+            allowedPositions={allowedPositions}
+            readyPositions={week.readyPositions || []}
+            onToggleReady={toggleReady}
+          />
+        )}
+
         {isAdmin && (
           <StaffManager
             staffList={staffList}
@@ -331,7 +372,13 @@ export default function ScheduleTable({
         )}
 
         {(isAdmin || allowedPositions.length > 0) && (
-          <RequestsViewer isAdmin={isAdmin} allowedPositions={allowedPositions} showToast={showToast} />
+          <RequestsViewer
+            isAdmin={isAdmin}
+            allowedPositions={allowedPositions}
+            showToast={showToast}
+            nextWeekStart={next.weekStart}
+            onApplied={refetchSchedule}
+          />
         )}
 
         <div key={activeTab} className="overflow-x-auto bg-[#123244] border border-[#1c3f4f] rounded-2xl animate-fade-in">
@@ -371,6 +418,57 @@ export default function ScheduleTable({
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReadinessPanel({ isAdmin, allowedPositions, readyPositions, onToggleReady }) {
+  const myPositions = isAdmin ? [] : allowedPositions;
+
+  return (
+    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl p-4 space-y-3 animate-fade-in">
+      <h2 className="text-white font-bold text-sm">מוכנות המחלקות לפני הפרסום</h2>
+
+      <div className="flex flex-wrap gap-2">
+        {POSITIONS.map((position) => {
+          const color = POSITION_COLORS[position];
+          const isReady = readyPositions.includes(position);
+          return (
+            <span
+              key={position}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs"
+              style={{ backgroundColor: `${color}22`, borderRight: `2px solid ${color}` }}
+            >
+              <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+              {position}
+              <span className={isReady ? "text-[#90d3d9]" : "text-gray-500"}>
+                {isReady ? "✅ מוכן" : "⏳ ממתין"}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+
+      {!isAdmin && myPositions.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-[#1c3f4f]">
+          {myPositions.map((position) => {
+            const isReady = readyPositions.includes(position);
+            return (
+              <button
+                key={position}
+                onClick={() => onToggleReady(position, !isReady)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95 ${
+                  isReady
+                    ? "bg-[#1c3f4f] text-gray-200 hover:bg-[#254d5f]"
+                    : "bg-[#90d3d9] text-[#0c2635] hover:bg-[#7cc3ca]"
+                }`}
+              >
+                {isReady ? `בטל מוכנות — ${position}` : `אני מוכן — ${position}`}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -722,12 +820,15 @@ function AccountsManager({ currentUsername, confirmDialog, showToast }) {
   );
 }
 
-function RequestsViewer({ isAdmin, allowedPositions, showToast }) {
+function RequestsViewer({ isAdmin, allowedPositions, showToast, nextWeekStart, onApplied }) {
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [requests, setRequests] = useState([]);
+  const [applyingPosition, setApplyingPosition] = useState(null);
+
+  const managedPositions = isAdmin ? POSITIONS : allowedPositions;
 
   async function loadRequests() {
     setLoading(true);
@@ -752,6 +853,30 @@ function RequestsViewer({ isAdmin, allowedPositions, showToast }) {
     const next = !open;
     setOpen(next);
     if (next && !loaded) loadRequests();
+  }
+
+  async function handleApply(positionName) {
+    setApplyingPosition(positionName);
+    try {
+      const res = await fetch("/api/requests/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekStart: nextWeekStart, positionName }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const parts = [`נוספו ${data.insertedCount} שיבוצים`];
+        if (data.conflictsCount > 0) parts.push(`${data.conflictsCount} התנגשויות דולגו`);
+        showToast(parts.join(" · "), "success");
+        onApplied();
+      } else {
+        showToast(data.error || "אירעה שגיאה", "error");
+      }
+    } catch {
+      showToast("לא ניתן להתחבר לשרת", "error");
+    } finally {
+      setApplyingPosition(null);
+    }
   }
 
   const grouped = {};
@@ -782,6 +907,25 @@ function RequestsViewer({ isAdmin, allowedPositions, showToast }) {
 
       {open && (
         <div className="p-4 pt-0 space-y-4 animate-slide-up">
+          {managedPositions.length > 0 && (
+            <div className="flex flex-wrap gap-2 pb-2 border-b border-[#1c3f4f]">
+              {managedPositions.map((position) => {
+                const color = POSITION_COLORS[position];
+                return (
+                  <button
+                    key={position}
+                    onClick={() => handleApply(position)}
+                    disabled={applyingPosition === position}
+                    className="text-xs font-semibold rounded-lg px-3 py-1.5 transition active:scale-95 disabled:opacity-50"
+                    style={{ backgroundColor: `${color}33`, color, border: `1px solid ${color}66` }}
+                  >
+                    {applyingPosition === position ? "..." : `החל הצעה — ${position}`}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {loading && (
             <div className="flex gap-1.5 py-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:0ms]" />
