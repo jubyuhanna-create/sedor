@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase";
 import { verifySessionToken, SESSION_COOKIE } from "../../../lib/auth";
 import { getCurrentWeekStartKey, getNextWeekStartKey } from "../../../lib/weeks";
+import { sendEmail, schedulePublishedEmail } from "../../../lib/email";
 
 async function getSession(request) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -80,12 +81,39 @@ export async function POST(request) {
   }
 
   const supabase = getSupabaseServer();
+
+  const { data: existingWeek } = await supabase
+    .from("schedule_weeks")
+    .select("is_published")
+    .eq("week_start", weekStart)
+    .maybeSingle();
+
+  const wasPublished = !!existingWeek?.is_published;
+
   const { error } = await supabase.from("schedule_weeks").upsert({
     week_start: weekStart,
     is_published: !!publish,
     published_at: publish ? new Date().toISOString() : null,
   });
   if (error) return NextResponse.json({ error: "העדכון נכשל" }, { status: 500 });
+
+  // שולחים מייל לכל הצוות רק במעבר בפועל מטיוטה לפרסום — לא בכל לחיצה חוזרת.
+  if (publish && !wasPublished) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+    const { data: staff } = await supabase
+      .from("staff_members")
+      .select("name, email")
+      .not("email", "is", null);
+
+    for (const s of staff || []) {
+      await sendEmail({
+        to: s.email,
+        subject: "הסידור פורסם — מסעדת רסיס",
+        html: schedulePublishedEmail({ name: s.name, link: `${siteUrl}/gate` }),
+      });
+    }
+  }
+
   return NextResponse.json({ ok: true, weekStart, isPublished: !!publish });
 }
 
