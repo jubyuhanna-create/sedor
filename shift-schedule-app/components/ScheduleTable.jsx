@@ -168,15 +168,30 @@ export default function ScheduleTable({
     }
   }
 
-  async function handleAddStaff(name, positionName) {
+  async function handleAddStaff(name, positionName, email) {
     const res = await fetch("/api/staff", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, positionName }),
+      body: JSON.stringify({ name, positionName, email }),
     });
     const data = await res.json();
     if (res.ok) {
       setStaffList((prev) => [...prev, data.staff]);
+    } else {
+      showToast(data.error || "אירעה שגיאה", "error");
+    }
+  }
+
+  async function handleUpdateStaffEmail(id, email) {
+    const res = await fetch("/api/staff", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, email }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setStaffList((prev) => prev.map((s) => (s.id === id ? data.staff : s)));
+      showToast("האימייל עודכן", "success");
     } else {
       showToast(data.error || "אירעה שגיאה", "error");
     }
@@ -300,6 +315,7 @@ export default function ScheduleTable({
             staffList={staffList}
             onAdd={handleAddStaff}
             onDelete={handleDeleteStaff}
+            onUpdateEmail={handleUpdateStaffEmail}
             viewPin={initialViewPin}
             confirmDialog={confirmDialog}
             showToast={showToast}
@@ -312,6 +328,10 @@ export default function ScheduleTable({
             confirmDialog={confirmDialog}
             showToast={showToast}
           />
+        )}
+
+        {(isAdmin || allowedPositions.length > 0) && (
+          <RequestsViewer isAdmin={isAdmin} allowedPositions={allowedPositions} showToast={showToast} />
         )}
 
         <div key={activeTab} className="overflow-x-auto bg-[#123244] border border-[#1c3f4f] rounded-2xl animate-fade-in">
@@ -497,7 +517,7 @@ function AddSlot({ shift, position, day, options, busy, onAdd }) {
   );
 }
 
-function StaffManager({ staffList, onAdd, onDelete, viewPin, confirmDialog, showToast }) {
+function StaffManager({ staffList, onAdd, onDelete, onUpdateEmail, viewPin, confirmDialog, showToast }) {
   const [open, setOpen] = useState(false);
 
   async function handleDelete(s) {
@@ -556,6 +576,10 @@ function StaffManager({ staffList, onAdd, onDelete, viewPin, confirmDialog, show
                         </span>
                       ))}
                   </div>
+                  <StaffEmailEditor
+                    staffList={staffList.filter((s) => s.position_name === position)}
+                    onUpdateEmail={onUpdateEmail}
+                  />
                   <AddStaffForm position={position} onAdd={onAdd} />
                 </div>
               );
@@ -698,6 +722,123 @@ function AccountsManager({ currentUsername, confirmDialog, showToast }) {
   );
 }
 
+function RequestsViewer({ isAdmin, allowedPositions, showToast }) {
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [requests, setRequests] = useState([]);
+
+  async function loadRequests() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/requests");
+      const data = await res.json();
+      if (res.ok) {
+        setRequests(data.requests || []);
+        setLoaded(true);
+      } else {
+        setError(data.error || "אירעה שגיאה");
+      }
+    } catch {
+      setError("לא ניתן להתחבר לשרת");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleToggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !loaded) loadRequests();
+  }
+
+  const grouped = {};
+  SHIFTS.forEach((shift) => {
+    grouped[shift] = {};
+    DAYS.forEach((day) => {
+      grouped[shift][day] = [];
+    });
+  });
+  requests.forEach((r) => {
+    if (grouped[r.shift_name] && grouped[r.shift_name][r.day_name]) {
+      grouped[r.shift_name][r.day_name].push(r);
+    }
+  });
+
+  return (
+    <div className="bg-[#123244] border border-[#1c3f4f] rounded-2xl overflow-hidden animate-fade-in">
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center justify-between gap-3 p-4 hover:bg-[#0c2635]/30 transition"
+      >
+        <h2 className="text-white font-bold">בקשות עובדים לשבוע הבא</h2>
+        <span className="text-[#90d3d9] text-sm flex items-center gap-1.5">
+          {open ? "סגור" : "פתח"}
+          <span className={`inline-block transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+        </span>
+      </button>
+
+      {open && (
+        <div className="p-4 pt-0 space-y-4 animate-slide-up">
+          {loading && (
+            <div className="flex gap-1.5 py-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#90d3d9] animate-pulse [animation-delay:300ms]" />
+            </div>
+          )}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          {!loading && !error && requests.length === 0 && (
+            <p className="text-gray-500 text-sm">עדיין לא התקבלו בקשות לשבוע הבא</p>
+          )}
+
+          {!loading && requests.length > 0 && (
+            <div className="space-y-4">
+              {SHIFTS.map((shift) => (
+                <div key={shift} className="space-y-2">
+                  <h3 className="text-[#90d3d9] text-sm font-bold">{shift}</h3>
+                  {DAYS.map((day) => {
+                    const dayRequests = grouped[shift][day];
+                    if (dayRequests.length === 0) return null;
+                    return (
+                      <div key={day} className="flex items-start gap-3 text-sm">
+                        <span className="text-gray-400 w-14 shrink-0 pt-1">{day}</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dayRequests.map((r) => {
+                            const color = POSITION_COLORS[r.staff_members?.position_name] || "#90d3d9";
+                            return (
+                              <span
+                                key={r.id}
+                                title={r.note || ""}
+                                className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs ${
+                                  r.wants_to_work ? "text-gray-100" : "text-gray-500 line-through"
+                                }`}
+                                style={{
+                                  backgroundColor: `${color}22`,
+                                  borderRight: `2px solid ${color}`,
+                                }}
+                              >
+                                {r.wants_to_work ? "✅" : "❌"} {r.staff_members?.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CreateUserForm({ showToast }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -795,31 +936,97 @@ function CreateUserForm({ showToast }) {
   );
 }
 
+function StaffEmailEditor({ staffList, onUpdateEmail }) {
+  const [open, setOpen] = useState(false);
+
+  if (staffList.length === 0) return null;
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-[10px] text-gray-500 hover:text-[#90d3d9] transition"
+      >
+        {open ? "סגור אימיילים" : "ערוך אימיילים"}
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1">
+          {staffList.map((s) => (
+            <StaffEmailRow key={s.id} staff={s} onUpdateEmail={onUpdateEmail} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StaffEmailRow({ staff, onUpdateEmail }) {
+  const [email, setEmail] = useState(staff.email || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    await onUpdateEmail(staff.id, email.trim());
+    setSaving(false);
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-[10px] text-gray-400 w-16 shrink-0 truncate">{staff.name}</span>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="אימייל"
+        className="flex-1 min-w-0 bg-[#0c2635] text-gray-100 text-[10px] rounded border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-1.5 py-0.5 transition"
+      />
+      <button
+        onClick={save}
+        disabled={saving}
+        className="shrink-0 bg-[#1c3f4f] hover:bg-[#254d5f] disabled:opacity-50 text-gray-200 text-[10px] rounded px-1.5 py-0.5 transition"
+      >
+        {saving ? "..." : "שמור"}
+      </button>
+    </div>
+  );
+}
+
 function AddStaffForm({ position, onAdd }) {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         if (name.trim()) {
-          onAdd(name.trim(), position);
+          onAdd(name.trim(), position, email.trim());
           setName("");
+          setEmail("");
         }
       }}
-      className="flex gap-1"
+      className="flex flex-col gap-1"
     >
+      <div className="flex gap-1">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="שם חדש"
+          className="flex-1 min-w-0 bg-[#0c2635] text-gray-100 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1 transition"
+        />
+        <button
+          type="submit"
+          className="shrink-0 bg-[#90d3d9] hover:bg-[#7cc3ca] text-[#0c2635] font-bold text-xs rounded-md px-2.5 transition active:scale-95"
+        >
+          +
+        </button>
+      </div>
       <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="שם חדש"
-        className="flex-1 min-w-0 bg-[#0c2635] text-gray-100 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1 transition"
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="אימייל (לא חובה כרגע)"
+        className="w-full bg-[#0c2635] text-gray-100 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-2 py-1 transition"
       />
-      <button
-        type="submit"
-        className="shrink-0 bg-[#90d3d9] hover:bg-[#7cc3ca] text-[#0c2635] font-bold text-xs rounded-md px-2.5 transition active:scale-95"
-      >
-        +
-      </button>
     </form>
   );
 }
