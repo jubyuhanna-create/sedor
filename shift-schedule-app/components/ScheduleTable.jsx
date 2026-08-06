@@ -882,13 +882,17 @@ function RequestsViewer({ isAdmin, allowedPositions, showToast, nextWeekStart, o
   const grouped = {};
   SHIFTS.forEach((shift) => {
     grouped[shift] = {};
-    DAYS.forEach((day) => {
-      grouped[shift][day] = [];
+    POSITIONS.forEach((position) => {
+      grouped[shift][position] = {};
+      DAYS.forEach((day) => {
+        grouped[shift][position][day] = [];
+      });
     });
   });
   requests.forEach((r) => {
-    if (grouped[r.shift_name] && grouped[r.shift_name][r.day_name]) {
-      grouped[r.shift_name][r.day_name].push(r);
+    const position = r.staff_members?.position_name;
+    if (grouped[r.shift_name]?.[position]?.[r.day_name]) {
+      grouped[r.shift_name][position][r.day_name].push(r);
     }
   });
 
@@ -940,46 +944,85 @@ function RequestsViewer({ isAdmin, allowedPositions, showToast, nextWeekStart, o
           )}
 
           {!loading && requests.length > 0 && (
-            <div className="space-y-4">
-              {SHIFTS.map((shift) => (
-                <div key={shift} className="space-y-2">
-                  <h3 className="text-[#90d3d9] text-sm font-bold">{shift}</h3>
-                  {DAYS.map((day) => {
-                    const dayRequests = grouped[shift][day];
-                    if (dayRequests.length === 0) return null;
-                    return (
-                      <div key={day} className="flex items-start gap-3 text-sm">
-                        <span className="text-gray-400 w-14 shrink-0 pt-1">{day}</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {dayRequests.map((r) => {
-                            const color = POSITION_COLORS[r.staff_members?.position_name] || "#90d3d9";
-                            return (
-                              <span
-                                key={r.id}
-                                title={r.note || ""}
-                                className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs ${
-                                  r.wants_to_work ? "text-gray-100" : "text-gray-500 line-through"
-                                }`}
-                                style={{
-                                  backgroundColor: `${color}22`,
-                                  borderRight: `2px solid ${color}`,
-                                }}
-                              >
-                                {r.wants_to_work ? "✅" : "❌"} {r.staff_members?.name}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+            <div className="overflow-x-auto rounded-xl border border-[#1c3f4f]">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr>
+                    <th className="sticky right-0 bg-[#0c2635] text-right text-gray-400 font-medium p-2.5 border-b border-[#1c3f4f] min-w-[110px]">
+                      תפקיד
+                    </th>
+                    {DAYS.map((day) => (
+                      <th
+                        key={day}
+                        className="text-center text-gray-300 font-semibold p-2.5 border-b border-[#1c3f4f] min-w-[120px]"
+                      >
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {SHIFTS.map((shift) => (
+                    <RequestsShiftRows key={shift} shift={shift} grouped={grouped} />
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+function RequestsShiftRows({ shift, grouped }) {
+  return (
+    <>
+      <tr>
+        <td colSpan={DAYS.length + 1} className="bg-[#0c2635] text-[#90d3d9] font-bold p-2 border-y border-[#1c3f4f] text-sm">
+          {shift}
+        </td>
+      </tr>
+      {POSITIONS.map((position) => {
+        const color = POSITION_COLORS[position];
+        const rowHasAny = DAYS.some((day) => grouped[shift][position][day].length > 0);
+        if (!rowHasAny) return null;
+        return (
+          <tr key={position}>
+            <td
+              className="sticky right-0 bg-[#123244] text-gray-300 font-medium p-2.5 border-b border-[#1c3f4f]/70 align-top"
+              style={{ borderRight: `3px solid ${color}` }}
+            >
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                {position}
+              </span>
+            </td>
+            {DAYS.map((day) => {
+              const dayRequests = grouped[shift][position][day];
+              return (
+                <td key={day} className="p-1.5 border-b border-[#1c3f4f]/70 align-top">
+                  <div className="flex flex-col gap-1">
+                    {dayRequests.map((r) => (
+                      <span
+                        key={r.id}
+                        title={r.note || ""}
+                        className={`rounded-md px-2 py-1 text-xs ${
+                          r.wants_to_work ? "text-gray-100" : "text-gray-500 line-through"
+                        }`}
+                        style={{ backgroundColor: `${color}22`, borderRight: `2px solid ${color}` }}
+                      >
+                        {r.wants_to_work ? "✅" : "❌"} {r.staff_members?.name}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })}
+    </>
   );
 }
 
