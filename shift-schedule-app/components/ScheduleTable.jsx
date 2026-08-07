@@ -4,7 +4,7 @@ import { useState } from "react";
 import { DAYS, getWeekDateLabels } from "../lib/weeks";
 import { useToast, useConfirm } from "./UIProvider";
 
-const SHIFTS = ["משמרת בוקר", "משמרת ערב"];
+const SHIFTS = ["משמרת בוקר", "משמרת ערב", "חופש"];
 const POSITIONS = ["מלצרים", "בר", "מטבח", "טאבון / שטיפה", "מנהל"];
 
 const POSITION_COLORS = {
@@ -26,8 +26,9 @@ function generateTimeOptions(shift) {
     opts.push("16:00");
     return opts;
   }
+  // משמרת ערב מתחילה מ-15:00 (3 אחה"צ) ועד חצות.
   const opts = [];
-  for (let h = 16; h < 24; h++) {
+  for (let h = 15; h < 24; h++) {
     opts.push(`${pad(h)}:00`);
     opts.push(`${pad(h)}:30`);
   }
@@ -519,7 +520,7 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
                       >
                         <span className="flex flex-col leading-tight">
                           <span className="text-gray-100">{person.name}</span>
-                          {person.shiftTime && (
+                          {shift !== "חופש" && person.shiftTime && (
                             <span className="text-[10px] text-[#90d3d9]">{person.shiftTime}</span>
                           )}
                         </span>
@@ -562,6 +563,29 @@ function RowsForShift({ shift, assignmentMap, canEditPosition, busyKey, availabl
 
 function AddSlot({ shift, position, day, options, busy, onAdd }) {
   const [pendingStaffId, setPendingStaffId] = useState("");
+
+  // עבור "חופש" אין צורך בבחירת שעה — הוספה מיידית עם בחירת העובד.
+  if (shift === "חופש") {
+    return (
+      <select
+        value=""
+        disabled={busy}
+        onChange={(e) => {
+          const staffId = e.target.value;
+          if (staffId) onAdd(shift, position, day, staffId, "-");
+        }}
+        className="w-full bg-[#0c2635] text-gray-400 text-xs rounded-md border border-[#1c3f4f] focus:border-[#90d3d9] focus:outline-none px-1.5 py-1 transition"
+      >
+        <option value="">+ סמן חופש</option>
+        {options.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
   const timeOptions = generateTimeOptions(shift);
 
   if (!pendingStaffId) {
